@@ -1,6 +1,6 @@
 import { testDbConnection } from "@core/db/connection";
 import { Elysia } from "elysia";
-import { readFileSync } from "fs";
+import { configServer } from "@/config";
 
 // ── Núcleo · Identidad, Accesos y Seguridad ─────────────────────────────────
 import { AuthWs } from "@modules/core/auth.ws";
@@ -15,7 +15,6 @@ import { NotificationsApi } from "@modules/core/notifications.api";
 // import { ClientesApi } from "@modules/clientes/clientes.api";
 
 const handleHome = async ({ status }) => {
-  let version = "";
   const d = new Date();
 
   // Consulta simple a Base de datos
@@ -24,15 +23,9 @@ const handleHome = async ({ status }) => {
     return status(500, { message: queryResult.error });
   }
 
-  try {
-    const path = "deploy.txt";
-    version = readFileSync(path).toString();
-  } catch (error) {
-    version = "No version";
-  }
   return {
     message: "API · Plantilla base CorAll",
-    version,
+    version: configServer.version,
     time: Date.now(),
     date: d.toISOString(),
     year: d.getFullYear(),

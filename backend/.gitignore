@@ -44,7 +44,3 @@ yarn-error.log*
 **/*.log
 package-lock.json
 **/*.bun
-
-deploy.txt
-
-gps.json
