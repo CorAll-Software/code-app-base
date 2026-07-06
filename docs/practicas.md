@@ -165,10 +165,61 @@ export const clientesService = {
 ## 5. Tiempo real (WebSocket)
 
 - Canal autenticado en `/ws` (`modules/core/auth.ws.ts` + `frontend/src/core/ws.ts`).
-- Usos del núcleo: cierre remoto de sesión (usuario deshabilitado), recarga de
-  permisos y notificaciones push (campana).
-- Para eventos de módulo: emitir desde el backend con los helpers de `auth.ws.ts`
-  y suscribirse en el frontend vía el store correspondiente.
+  El backend mantiene el mapa de sesiones `wsSesssion` y expone helpers:
+  `notifyUserClose(userId)` (cierre remoto de sesión), `notifyUserReload(userId)`
+  (recargar sesión/permisos) y `notifyUserJson(userId, data)` (mensaje arbitrario).
+- Para eventos de módulo: emitir desde el backend con `notifyUserJson` y manejar
+  el `type` del mensaje en el handler WS de `frontend/src/App.tsx`.
+
+### Notificaciones (campana)
+
+Circuito completo, de la emisión a la campana:
+
+```
+createNotification()                    ← backend/src/modules/core/notifications.helper.ts
+  ├─ core.create_notification(req)     → persiste en core.notifications
+  └─ notifyUserJson(userId, { type: 'notification', payload })   → push WS si está conectado
+                                          ↓
+frontend App.tsx (handler WS type === 'notification')
+  ├─ useNotificationsStore.addNotification(payload)   → campana (badge + lista)
+  └─ toast AntD con botón "Ver" si payload.link       → navega y marca leída
+```
+
+- **Emitir** (desde cualquier módulo del backend):
+
+  ```ts
+  import { createNotification } from '@modules/core/notifications.helper';
+
+  await createNotification({
+      userId: 42,
+      title: 'Pedido aprobado',
+      message: 'El pedido #123 fue aprobado por gerencia.',
+      type: 'success',          // info | success | warning | error (estilo del toast)
+      module: 'ventas',
+      link: '/pedidos',         // ruta interna: botón "Ver" en el toast y la campana
+  });
+  ```
+
+  Si el usuario no está conectado, no se pierde: queda en BD y la verá al abrir
+  la campana. Para notificar a varios usuarios, obtener los destinatarios con
+  `core.list_users_by_permission` y llamar `createNotification` por cada uno.
+
+- **Consumir** (ya resuelto por el núcleo, no requiere código nuevo):
+  `NotificationsPopover` (campana en el header) usa `store/notifications.store.ts`,
+  que llama a los endpoints de `modules/core/notifications.api.ts`:
+  `GET /notifications` (lista + `unreadCount`), `PUT /notifications/:id/read`,
+  `PUT /notifications/read-all`. Operan siempre sobre el usuario del token
+  (`requirePermission: null` = solo autenticación; la función SQL de marcado
+  filtra por `user_id` para no tocar notificaciones ajenas).
+
+- **BD**: tabla `core.notifications` + funciones en
+  `postgres/core/notifications/procedures.sql` (`create_notification`,
+  `list_notifications`, `count_unread_notifications`, `mark_notification_as_read`,
+  `mark_all_notifications_as_read`).
+
+- **Probar**: con el backend corriendo y sesión abierta en el frontend, ejecutar
+  `bun run src/utils/trigger-test-notification.ts <userId>` (solo persiste en BD;
+  el push en vivo ocurre cuando `createNotification` se llama desde el servidor).
 
 ## 6. Checklist al agregar un módulo
 

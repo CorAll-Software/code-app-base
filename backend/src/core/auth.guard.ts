@@ -9,7 +9,8 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
         return { user };
     })
     .macro({
-        requirePermission(value: PermisoSlug | PermisoSlug[]) {
+        // `null` = solo exige token válido (sin permiso específico).
+        requirePermission(value: PermisoSlug | PermisoSlug[] | null) {
             return {
                 async beforeHandle({ user, status }) {
                     // 1. Validar identidad base (Token válido)

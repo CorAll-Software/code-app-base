@@ -45,7 +45,8 @@ src/
 │   ├── segurity/password.ts    # Bun.password (bcrypt)
 │   └── permissions.constants.ts# Diccionario de slugs (gemelo del frontend)
 └── modules/
-    └── core/          # auth, users, roles, permissions (+ auth.ws)
+    └── core/          # auth, users, roles, permissions, notifications (+ auth.ws)
+                       # notifications.helper.ts → createNotification() (BD + push WS)
 ```
 
 ## Cómo agregar un módulo

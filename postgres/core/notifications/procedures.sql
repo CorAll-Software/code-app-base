@@ -97,18 +97,21 @@ $function$;
 
 -- -----------------------------------------------------------------------------
 -- 4. core.mark_notification_as_read
--- Marca una notificación específica como leída
+-- Marca una notificación específica como leída. Si llega user_id, solo la
+-- marca cuando pertenece a ese usuario (evita marcar notificaciones ajenas).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION core.mark_notification_as_read(req json)
 RETURNS json
 LANGUAGE plpgsql
 AS $function$
 DECLARE
-    v_id UUID := (req->>'id')::UUID;
+    v_id      UUID    := (req->>'id')::UUID;
+    v_user_id INTEGER := (req->>'user_id')::INTEGER;
 BEGIN
     UPDATE core.notifications
     SET is_read = TRUE
-    WHERE id = v_id;
+    WHERE id = v_id
+      AND (v_user_id IS NULL OR user_id = v_user_id);
 
     RETURN json_build_object('id', v_id, 'is_read', TRUE);
 END
