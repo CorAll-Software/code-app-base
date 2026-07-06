@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": [
+      "bun-types"
+    ],
+    "outDir": "./build",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "baseUrl": "./",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/*": [
+        "src/*",
+      ],
+      "@/config": [
+        "src/config",
+      ],
+      "@core/*": [
+        "src/core/*",
+      ],
+      "@modules/*": [
+        "src/modules/*",
+      ],
+    }
+  }
+}

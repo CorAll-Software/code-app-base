@@ -1,0 +1,167 @@
+// =============================================================================
+// ESQUEMA: core — Identidad, accesos, auditoría y notificaciones (BASE)
+// Diagrama ER autónomo de este esquema. Render: https://dbdiagram.io
+//
+// core no depende de otros esquemas → todas las refs son intra-core (ref: reales).
+// El agregado completo está en postgres/tables.dbml.
+// =============================================================================
+
+Project app_base_core {
+  database_type: 'PostgreSQL'
+  Note: 'Esquema core — Plantilla base CorAll.'
+}
+
+// ── ENUMs ────────────────────────────────────────────────────────────────────
+Enum core.enum_audit_action {
+  INSERT
+  UPDATE
+  DELETE
+}
+
+// Módulos del sistema. Agrega un valor por cada módulo de negocio.
+Enum core.enum_module {
+  CORE  [note: 'Login, usuarios, roles, permisos y auditoría']
+  ADMIN [note: 'Administración / configuración general']
+}
+
+// ── Tablas ───────────────────────────────────────────────────────────────────
+
+Table core.permissions {
+  id          serial       [pk]
+  name        varchar(100) [not null]
+  slug        varchar(100) [not null, unique]
+  description text
+  status      boolean      [default: true]
+  user_cr     integer
+  date_cr     bigint       [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up     integer
+  date_up     bigint
+  Note: 'Catálogo de permisos (slug). Sincronizado con core/permissions.constants.ts'
+}
+
+Table core.users {
+  id            serial       [pk]
+  first_name    varchar(100) [not null]
+  last_name     varchar(100) [not null]
+  email         varchar(150) [not null]
+  password_hash varchar(255) [not null]
+  phone         varchar(20)
+  foto_url      varchar(500)
+  last_login    bigint
+  dni           varchar(20)
+  cargo         varchar(150)
+  enable        boolean      [default: true, note: 'Activo / Inactivo']
+  status        boolean      [default: true, note: 'Visible (soft delete) / Hidden']
+  user_cr       integer
+  date_cr       bigint       [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up       integer
+  date_up       bigint
+}
+
+Table core.roles {
+  id          serial           [pk]
+  name        varchar(100)     [not null]
+  description text
+  is_system   boolean          [default: false]
+  enable      boolean          [default: true]
+  status      boolean          [default: true]
+  user_cr     integer
+  date_cr     bigint           [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up     integer
+  date_up     bigint
+}
+
+Table core.role_permissions {
+  id            serial  [pk]
+  role_id       integer [not null, ref: > core.roles.id]
+  permission_id integer [not null, ref: > core.permissions.id]
+  status        boolean [default: true]
+  user_cr       integer
+  date_cr       bigint  [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up       integer
+  date_up       bigint
+
+  indexes {
+    (role_id, permission_id) [unique]
+  }
+}
+
+Table core.user_roles {
+  id      serial  [pk]
+  user_id integer [not null, ref: > core.users.id]
+  role_id integer [not null, ref: > core.roles.id]
+  status  boolean [default: true]
+  user_cr integer
+  date_cr bigint  [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up integer
+  date_up bigint
+
+  indexes {
+    (user_id, role_id) [unique]
+  }
+}
+
+Table core.audit_log {
+  id         serial                 [pk]
+  user_id    integer                [ref: > core.users.id]
+  module     core.enum_module
+  table_name varchar(100)
+  record_id  integer
+  action     core.enum_audit_action
+  old_data   jsonb
+  new_data   jsonb
+  ip_address varchar(45)
+  status     boolean                [default: true]
+  user_cr    integer
+  date_cr    bigint                 [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up    integer
+  date_up    bigint
+  Note: 'Bitácora de auditoría inmutable (RNF-04, RNF-05).'
+}
+
+Table core.notifications {
+  id         uuid         [pk, default: `gen_random_uuid()`]
+  user_id    integer      [not null, ref: > core.users.id]
+  title      varchar(150) [not null]
+  message    text         [not null]
+  type       varchar(30)  [not null]
+  module     varchar(50)
+  link       varchar(255)
+  is_read    boolean      [default: false]
+  created_at timestamptz  [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (user_id, is_read)
+  }
+  Note: 'Notificaciones del sistema (campana de notificaciones).'
+}
+
+Table core.password_recovery {
+  id            serial       [pk]
+  user_id       integer      [not null, ref: > core.users.id]
+  recovery_code varchar(6)   [not null]
+  email         varchar(150) [not null]
+  expires_at    bigint       [not null]
+  used          boolean      [default: false]
+  attempts      integer      [default: 0]
+  created_at    bigint       [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  used_at       bigint
+
+  indexes {
+    recovery_code
+    user_id
+    email
+  }
+  Note: 'Códigos de recuperación de contraseña de usuarios internos (intranet).'
+}
+
+TableGroup core {
+  core.permissions
+  core.users
+  core.roles
+  core.role_permissions
+  core.user_roles
+  core.audit_log
+  core.notifications
+  core.password_recovery
+}

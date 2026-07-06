@@ -1,0 +1,15 @@
+{
+  "name": "App Base · CorAll",
+  "short_name": "App Base",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#251f5b",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}
