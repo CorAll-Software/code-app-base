@@ -11,6 +11,7 @@ const { useToken } = theme;
 const { Title, Text } = Typography;
 
 export const ForgotPasswordPage = () => {
+    const [codeForm] = Form.useForm<{ recovery_code: string }>();
     const [currentStep, setCurrentStep] = useState(0);
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
@@ -40,9 +41,12 @@ export const ForgotPasswordPage = () => {
             if (result) {
                 setRecoveryCode(values.recovery_code);
                 setCurrentStep(2);
+            } else {
+                codeForm.setFieldValue('recovery_code', '');
             }
         } catch (error) {
             // Error managed by service/http
+            codeForm.setFieldValue('recovery_code', '');
         }
         setLoading(false);
     };
@@ -119,21 +123,21 @@ export const ForgotPasswordPage = () => {
 
             case 1:
                 return (
-                    <Form onFinish={onFinishCode} layout="vertical">
+                    <Form form={codeForm} onFinish={onFinishCode} layout="vertical">
                         <Form.Item
                             name="recovery_code"
                             label="Código de recuperación"
+                            className="recovery-code-input"
                             rules={[
                                 { required: true, message: 'Por favor ingresa el código' },
                                 { len: 6, message: 'El código debe tener 6 dígitos' }
                             ]}
                         >
-                            <Input
-                                prefix={<SafetyOutlined />}
-                                placeholder="123456"
-                                maxLength={6}
+                            <Input.OTP
+                                length={6}
                                 size="large"
-                                className="recovery-code-input"
+                                formatter={(str) => str.replace(/\D/g, '')}
+                                onChange={() => codeForm.submit()}
                             />
                         </Form.Item>
                         <Text type="secondary" className="block text-center mb-3">

@@ -445,11 +445,19 @@ body {
   }
 
   .recovery-code-input {
+    .ant-otp {
+      justify-content: center;
+      width: 100%;
+    }
+
     .ant-input {
       text-align: center;
-      letter-spacing: 0.5em;
       font-size: 18px;
       font-weight: 600;
+    }
+
+    .ant-form-item-explain {
+      text-align: center;
     }
   }
 
