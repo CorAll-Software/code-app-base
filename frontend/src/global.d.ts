@@ -10,6 +10,7 @@ interface Window {
     }
     _routeApi: string
     _routeWs: string
+    _routeCaptcha: string
     _s3Bucket: string
     _accountId: string
     _projectId: number

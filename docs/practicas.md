@@ -105,6 +105,54 @@ Reglas:
   `userStore.hasPermission()`. Al editar roles, el backend notifica por WS y el
   frontend recarga la sesión.
 
+### CAPTCHA (Cap)
+
+Los endpoints públicos de `auth` (`login`, `forgot-password`,
+`validate-recovery-code`, `reset-password`) exigen un token de
+[Cap](https://trycap.dev), el CAPTCHA autoalojado de prueba-de-trabajo.
+
+- **Backend**: `core/captcha.guard.ts` expone la macro `requireCaptcha: true`.
+  Se aplica igual que `requirePermission`, y el esquema del body debe incluir
+  `...captchaBodyField` (campo `cap-token`). El guard canjea el token contra
+  `<instancia>/<siteKey>/siteverify` ANTES del handler y **falla cerrado**: si
+  la instancia Cap no responde, la petición se rechaza con 503.
+  Respuestas: `400` token ausente · `403` inválido/expirado/reusado · `503`
+  instancia inalcanzable.
+- **Frontend**: `<CapCaptcha>` (`components/CapCaptcha.tsx`) usa el **modo
+  flotante**: el widget vive oculto en `document.body` y solo aparece anclado al
+  botón de envío (`anchorRef`) mientras resuelve el reto.
+  El disparo es **posterior a la validación**: se llama a `captchaRef.current.solve()`
+  dentro del `onFinish` de Ant Design —que solo corre si el formulario validó—,
+  así no se gasta una prueba-de-trabajo en un formulario con errores.
+  `solve()` devuelve el token (o `''` si el CAPTCHA está desactivado) y lanza si
+  el reto falla; `withCaptcha(params, capToken)` de `core/captcha.ts` lo adjunta
+  al payload. Cada envío resuelve un reto nuevo, porque el token es de un solo uso.
+
+  ```tsx
+  const captchaRef = useRef<CapCaptchaHandle>(null)
+  const submitRef = useRef<any>(null)
+
+  const onFinish = async (values) => {          // AntD ya validó
+      setLoading(true)
+      let capToken: string
+      try { capToken = await captchaRef.current.solve() }
+      catch { message.error(CAPTCHA_FAILED_MSG); setLoading(false); return }
+      await miServicio.enviar(values, capToken)  // -> withCaptcha(...)
+  }
+
+  <CapCaptcha ref={captchaRef} anchorRef={submitRef} />
+  <Button ref={submitRef} htmlType="submit" loading={loading}>Enviar</Button>
+  ```
+
+  NOTA: no se usa el helper oficial `cap-floating.js`; ese intercepta el click
+  en fase de captura (`stopImmediatePropagation`) y resolvería el reto ANTES de
+  que Ant Design valide, que es justo lo contrario de lo que queremos.
+- **Configuración**: `CAP_API_ENDPOINT` + `CAP_SECRET_KEY` (backend) y
+  `VITE_CAP_API_ENDPOINT` (frontend, endpoint público con barra final). La
+  clave secreta NUNCA viaja al navegador. Si las variables quedan vacías el
+  CAPTCHA se desactiva por completo y el backend avisa al arrancar — es el
+  estado por defecto de la plantilla, pero **en producción deben definirse**.
+
 ## 4. Frontend (React + Ant Design)
 
 ### Estructura de un módulo
@@ -235,6 +283,9 @@ frontend App.tsx (handler WS type === 'notification')
    `core/listas.tsx`.
 4. **Verificar**: `bun run tsc` en backend y `bun run build` en frontend;
    probar el flujo con un rol SIN el permiso nuevo (debe ocultarse/403).
+5. **Endpoints públicos** (sin token de sesión): protegerlos con
+   `requireCaptcha: true` + `...captchaBodyField` y montar `<CapCaptcha>` en el
+   formulario correspondiente.
 
 ## 7. Calidad y estilo
 

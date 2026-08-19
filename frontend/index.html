@@ -42,6 +42,7 @@
     const publicUrl = "%VITE_PUBLIC_URL%"
     const apiUrl = "%VITE_API_URL%"
     const wsUrl = "%VITE_WS_URL%"
+    const capApiEndpoint = "%VITE_CAP_API_ENDPOINT%"
     const umamiScriptUrl = "%VITE_UMAMI_SCRIPT_URL%"
     const umamiWebsiteId = "%VITE_UMAMI_WEBSITE_ID%"
 
@@ -56,6 +57,9 @@
     window._routeWs = isEnvValue(wsUrl)
       ? wsUrl
       : (isDevelopment ? 'ws://localhost:3000/ws/' : '/ws/');
+
+    // Cap (CAPTCHA autoalojado). Vacío = desactivado (plantilla sin instancia Cap).
+    window._routeCaptcha = isEnvValue(capApiEndpoint) ? capApiEndpoint : '';
 
     if (!isDevelopment && isEnvValue(umamiScriptUrl) && isEnvValue(umamiWebsiteId)) {
       const script = document.createElement('script');

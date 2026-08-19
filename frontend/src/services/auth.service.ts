@@ -1,5 +1,6 @@
 import { PUT, POST } from '@src/core/http';
 import { useSocket } from '@src/core/ws';
+import { withCaptcha } from '@src/core/captcha';
 
 const userActive = () => useSocket('user-active', {})
 
@@ -32,11 +33,11 @@ const updatePassword = async (params: any) => {
 }
 
 // Funciones para recuperación de contraseña
-const forgotPassword = async (email: string) => {
+const forgotPassword = async (email: string, capToken?: string) => {
     return POST('auth/forgot-password', {
         msgSuccess: 'Código de recuperación enviado. Por favor, revisa tu bandeja de entrada o spam.',
         msgError: 'No se pudo procesar la solicitud. Verifica que el correo ingresado sea correcto o contacta al administrador.',
-        params: { email }
+        params: withCaptcha({ email }, capToken)
     })
         .then(res => {
             return res
@@ -44,10 +45,10 @@ const forgotPassword = async (email: string) => {
         .catch(() => null)
 }
 
-const validateRecoveryCode = async (email: string, recovery_code: string) => {
+const validateRecoveryCode = async (email: string, recovery_code: string, capToken?: string) => {
     return POST('auth/validate-recovery-code', {
         msgError: 'El código ingresado es inválido o ya ha expirado.',
-        params: { email, recovery_code }
+        params: withCaptcha({ email, recovery_code }, capToken)
     })
         .then(res => {
             return res
@@ -55,11 +56,11 @@ const validateRecoveryCode = async (email: string, recovery_code: string) => {
         .catch(() => null)
 }
 
-const resetPassword = async (email: string, recovery_code: string, new_password: string) => {
+const resetPassword = async (email: string, recovery_code: string, new_password: string, capToken?: string) => {
     return POST('auth/reset-password', {
         msgSuccess: '¡Tu contraseña ha sido restablecida con éxito!',
         msgError: 'Hubo un problema al restablecer tu contraseña. Por favor, intenta de nuevo.',
-        params: { email, recovery_code, new_password }
+        params: withCaptcha({ email, recovery_code, new_password }, capToken)
     })
         .then(res => {
             return res

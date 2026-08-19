@@ -1,5 +1,10 @@
 import { setTimeZone } from "bun:jsc";
 
+// Cap: normalizamos el endpoint para garantizar la barra final que exige el widget.
+const rawCapEndpoint = (process.env.CAP_API_ENDPOINT || "").trim();
+const capApiEndpoint = rawCapEndpoint ? rawCapEndpoint.replace(/\/+$/, "") + "/" : "";
+const capSecretKey = (process.env.CAP_SECRET_KEY || "").trim();
+
 export const configServer = {
   version: "0.1.0",
   team: process.env.TEAM_NAME || "Mi Empresa",
@@ -43,6 +48,19 @@ export const configServer = {
   },
   redis: {
     url: process.env.REDIS_URL || "redis://localhost:6379",
+  },
+  /**
+   * Cap · CAPTCHA autoalojado (https://trycap.dev).
+   * Se activa solo cuando ambas variables están definidas; mientras no lo estén
+   * (caso plantilla recién clonada) los endpoints públicos no exigen token.
+   */
+  captcha: {
+    // Endpoint público de la instancia, con barra final: https://<instancia>/<siteKey>/
+    apiEndpoint: capApiEndpoint,
+    // Clave secreta: solo servidor, nunca se expone al navegador.
+    secretKey: capSecretKey,
+    enabled: Boolean(capApiEndpoint && capSecretKey),
+    timeoutMs: parseInt(process.env.CAP_TIMEOUT_MS || "8000"),
   },
   webhooks: {
     emailSecret: process.env.WEBHOOK_EMAIL_SECRET || "",

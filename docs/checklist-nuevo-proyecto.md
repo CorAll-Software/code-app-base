@@ -29,6 +29,12 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
   - `TEAM_NAME` (aparece en correos y UI)
 - [ ] `frontend/.env` ya apunta a localhost; completar `.env.production` / `.env.qas`
       con los dominios reales cuando existan.
+- [ ] **CAPTCHA (Cap)**: crear un site key en la instancia de Cap y completar
+  - `CAP_API_ENDPOINT` + `CAP_SECRET_KEY` en `backend/.env`
+  - `VITE_CAP_API_ENDPOINT` en los `.env` del frontend (mismo endpoint público,
+    **con barra final**: `https://<instancia-cap>/<site-key>/`)
+  - Mientras queden vacíos el CAPTCHA está desactivado (el backend lo avisa al
+    arrancar); definirlos antes de salir a producción.
 - [ ] Revisar `timeZone` en `backend/src/config.ts` (por defecto `America/Lima`).
 
 ## 4. Base de datos

@@ -25,6 +25,7 @@
     "@dnd-kit/utilities": "3.2.2",
     "antd": "6.4.5",
     "canvas-confetti": "1.9.4",
+    "cap-widget": "0.1.57",
     "chart.js": "4.5.1",
     "chartjs-plugin-annotation": "3.1.0",
     "chartjs-plugin-zoom": "2.2.0",

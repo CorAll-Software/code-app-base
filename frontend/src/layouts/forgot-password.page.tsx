@@ -2,9 +2,11 @@ import { LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useFeedback } from '@src/providers/message.provider';
 import { authService } from '@src/services/auth.service';
 import { Button, Form, Input, Steps, Typography } from 'antd';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from 'antd';
+import { CAPTCHA_FAILED_MSG } from '@core/captcha';
+import { CapCaptcha, type CapCaptchaHandle } from '@components/CapCaptcha';
 
 const { useToken } = theme;
 
@@ -16,13 +18,36 @@ export const ForgotPasswordPage = () => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [recoveryCode, setRecoveryCode] = useState('');
+    const captchaRef = useRef<CapCaptchaHandle>(null);
+    // Solo hay un paso montado a la vez, así que el mismo ref sirve de ancla
+    // para el botón de envío de cualquiera de ellos.
+    const submitRef = useRef<any>(null);
     const { message } = useFeedback();
+
+    /**
+     * Resuelve el reto de Cap. Se llama desde los `onFinish`, es decir cuando
+     * Ant Design ya validó el formulario. Devuelve `null` si falla (el mensaje
+     * de error ya se mostró).
+     */
+    const solveCaptcha = async (): Promise<string | null> => {
+        try {
+            return await captchaRef.current.solve();
+        } catch (err) {
+            console.error(err);
+            message.error(CAPTCHA_FAILED_MSG);
+            return null;
+        }
+    };
 
     // Paso 1: Solicitar código de recuperación
     const onFinishEmail = async (values: { email: string }) => {
         setLoading(true);
+
+        const capToken = await solveCaptcha();
+        if (capToken === null) { setLoading(false); return; }
+
         try {
-            const result = await authService.forgotPassword(values.email);
+            const result = await authService.forgotPassword(values.email, capToken);
             if (result) {
                 setEmail(values.email);
                 setCurrentStep(1);
@@ -36,8 +61,12 @@ export const ForgotPasswordPage = () => {
     // Paso 2: Validar código de recuperación
     const onFinishCode = async (values: { recovery_code: string }) => {
         setLoading(true);
+
+        const capToken = await solveCaptcha();
+        if (capToken === null) { setLoading(false); return; }
+
         try {
-            const result = await authService.validateRecoveryCode(email, values.recovery_code);
+            const result = await authService.validateRecoveryCode(email, values.recovery_code, capToken);
             if (result) {
                 setRecoveryCode(values.recovery_code);
                 setCurrentStep(2);
@@ -59,8 +88,12 @@ export const ForgotPasswordPage = () => {
         }
 
         setLoading(true);
+
+        const capToken = await solveCaptcha();
+        if (capToken === null) { setLoading(false); return; }
+
         try {
-            const result = await authService.resetPassword(email, recoveryCode, values.new_password);
+            const result = await authService.resetPassword(email, recoveryCode, values.new_password, capToken);
             if (result) {
                 setCurrentStep(3);
             }
@@ -109,6 +142,7 @@ export const ForgotPasswordPage = () => {
                         </Form.Item>
                         <Form.Item>
                             <Button
+                                ref={submitRef}
                                 type="primary"
                                 htmlType="submit"
                                 loading={loading}
@@ -145,6 +179,7 @@ export const ForgotPasswordPage = () => {
                         </Text>
                         <Form.Item>
                             <Button
+                                ref={submitRef}
                                 type="primary"
                                 htmlType="submit"
                                 loading={loading}
@@ -214,6 +249,7 @@ export const ForgotPasswordPage = () => {
                         </Form.Item>
                         <Form.Item>
                             <Button
+                                ref={submitRef}
                                 type="primary"
                                 htmlType="submit"
                                 loading={loading}
@@ -265,6 +301,8 @@ export const ForgotPasswordPage = () => {
                     )}
 
                     {renderStepContent()}
+
+                    <CapCaptcha ref={captchaRef} anchorRef={submitRef} />
 
                     {currentStep < 3 && (
                         <div className="text-center mt-4">

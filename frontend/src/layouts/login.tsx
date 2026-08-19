@@ -2,25 +2,44 @@ import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useAuth } from '@src/providers/auth-provider';
 import { useFeedback } from '@src/providers/message.provider';
 import { Button, Col, Form, Input, Row } from 'antd';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
+import { CAPTCHA_FAILED_MSG, withCaptcha } from '@core/captcha';
+import { CapCaptcha, type CapCaptchaHandle } from '@components/CapCaptcha';
 
 export const Login = () => {
 
     const auth = useAuth()
     const [loading, setLoading] = useState(false)
+    const captchaRef = useRef<CapCaptchaHandle>(null)
+    const submitRef = useRef<any>(null)
     const { message } = useFeedback();
 
+    // Ant Design solo llama a onFinish cuando el formulario ya validó, así que
+    // el reto de Cap se resuelve aquí: no se gasta una prueba-de-trabajo en un
+    // formulario con errores.
     const onFinish = async (e) => {
         const { email, password } = e
         if (!email || !password) { return }
+
         setLoading(true)
+
+        let capToken: string
+        try {
+            capToken = await captchaRef.current.solve()
+        } catch (err) {
+            console.error(err)
+            message.error(CAPTCHA_FAILED_MSG)
+            setLoading(false)
+            return
+        }
+
         fetch(window._routeApi + 'auth/login', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify(withCaptcha({ email, password }, capToken))
         })
             .then(async res => {
                 const contentType = res.headers.get('Content-Type').split(';')[0]
@@ -88,7 +107,8 @@ export const Login = () => {
                                 placeholder="Contraseña"
                             />
                         </Form.Item>
-                        <Button type="primary" htmlType="submit" className="button-login w-100 my-10" loading={loading}>
+                        <CapCaptcha ref={captchaRef} anchorRef={submitRef} />
+                        <Button ref={submitRef} type="primary" htmlType="submit" className="button-login w-100 my-10" loading={loading}>
                             Iniciar sesión
                         </Button>
                         <div className="text-center mt-10">

@@ -8,8 +8,8 @@ import { emailService } from '@core/email/email-service';
 import { getS3ObjectUrl } from '@core/s3';
 import { Elysia, t } from 'elysia';
 import { authPlugin } from '@core/auth.guard';
-import { PERMISSIONS } from '@core/permissions.constants';
-import { configServer } from 'src/config';
+import { captchaPlugin, captchaBodyField } from '@core/captcha.guard';
+import { configServer } from '@/config';
 
 const signUserAvatar = async (user: any) => {
     if (user?.avatar) {
@@ -23,6 +23,7 @@ const { verifySync } = Bun.password
 const path = '/auth'
 
 export const AuthApi = new Elysia()
+    .use(captchaPlugin)
     .post(`${path}/login`, async ({ body, status, cookie }) => {
 
         const { email, password } = body as { email: string, password: string };
@@ -83,9 +84,11 @@ export const AuthApi = new Elysia()
         return { user, token, expiresIn: configServer.auth.expiresIn }
 
     }, {
+        requireCaptcha: true,
         body: t.Object({
             email: t.String(),
-            password: t.String()
+            password: t.String(),
+            ...captchaBodyField
         })
     })
     .post(`${path}/logout`, async ({ headers, cookie }) => {
@@ -272,8 +275,10 @@ export const AuthApi = new Elysia()
 
         return { message: 'Código de recuperación enviado' };
     }, {
+        requireCaptcha: true,
         body: t.Object({
-            email: t.String()
+            email: t.String(),
+            ...captchaBodyField
         })
     })
     .post(`${path}/validate-recovery-code`, async ({ body, status }) => {
@@ -289,9 +294,11 @@ export const AuthApi = new Elysia()
 
         return { message: 'Código válido' };
     }, {
+        requireCaptcha: true,
         body: t.Object({
             email: t.String(),
-            recovery_code: t.String({ minLength: 6, maxLength: 6 })
+            recovery_code: t.String({ minLength: 6, maxLength: 6 }),
+            ...captchaBodyField
         })
     })
     .post(`${path}/reset-password`, async ({ body, status, headers }) => {
@@ -329,9 +336,11 @@ export const AuthApi = new Elysia()
 
         return { message: 'Contraseña restablecida exitosamente' };
     }, {
+        requireCaptcha: true,
         body: t.Object({
             email: t.String(),
             recovery_code: t.String({ minLength: 6, maxLength: 6 }),
-            new_password: t.String({ minLength: 8 })
+            new_password: t.String({ minLength: 8 }),
+            ...captchaBodyField
         })
     })
