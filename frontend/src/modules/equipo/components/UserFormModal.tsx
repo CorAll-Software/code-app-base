@@ -69,7 +69,9 @@ export const UserFormModal = ({
 
     const handleFotoRemove = useCallback(async () => {
         if (!user?.id) return;
-        await usersService.deleteFoto(user.id);
+        // Si el borrado falla, la foto sigue existiendo: no la quitamos de la UI.
+        const ok = await usersService.deleteFoto(user.id);
+        if (!ok) return;
         setLocalFotoUrl(null);
         onFotoChange?.(user.id, null);
     }, [user?.id, onFotoChange]);

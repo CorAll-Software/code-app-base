@@ -13,13 +13,26 @@ export interface UserSessionInfo {
     current: boolean;
 }
 
-const list = () => GET<UserSessionInfo[]>('auth/sessions', { hideNotification: true });
+/*
+    Como el resto de servicios: NUNCA rechazan. Devuelven un valor centinela
+    (`[]` / `false`) que el llamador debe comprobar antes de tocar el estado.
+    El error ya se le mostró al usuario desde core/http.ts.
+*/
 
-const revoke = (id: string) =>
-    DELETE(`auth/sessions/${id}`, { msgSuccess: 'Sesión cerrada' });
+const list = (): Promise<UserSessionInfo[]> =>
+    GET<UserSessionInfo[]>('auth/sessions')
+        .then(res => Array.isArray(res) ? res : [])
+        .catch(() => []);
 
-const revokeOthers = () =>
-    DELETE('auth/sessions', { msgSuccess: 'Se cerraron las demás sesiones' });
+const revoke = (id: string): Promise<boolean> =>
+    DELETE(`auth/sessions/${id}`, { msgSuccess: 'Sesión cerrada' })
+        .then(() => true)
+        .catch(() => false);
+
+const revokeOthers = (): Promise<boolean> =>
+    DELETE('auth/sessions', { msgSuccess: 'Se cerraron las demás sesiones' })
+        .then(() => true)
+        .catch(() => false);
 
 export const sessionsService = {
     list,

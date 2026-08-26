@@ -40,8 +40,9 @@ const DrawerHeader = () => {
     };
 
     const handleRemove = async () => {
-        await portalPhotoService.deleteFoto();
-        auth.login({ ...auth.user, avatar: null }, auth.expiredIn);
+        // Solo limpiamos el avatar en pantalla si el backend confirmó el borrado.
+        const ok = await portalPhotoService.deleteFoto();
+        if (ok) auth.login({ ...auth.user, avatar: null }, auth.expiredIn);
     };
 
     return (
@@ -353,6 +354,7 @@ const ChangePasswordTab = ({ form }: { form: any }) => {
 const isMobileDevice = (device?: string | null) => /Android|iOS/i.test(device || '');
 
 const SessionsTab = () => {
+    const auth = useAuth();
     const [sessions, setSessions] = useState<UserSessionInfo[]>([]);
     const [loading, setLoading] = useState(true);
     /** id de la sesión que se está cerrando, o 'others' para el cierre masivo. */
@@ -360,35 +362,46 @@ const SessionsTab = () => {
 
     const load = async () => {
         setLoading(true);
-        try {
-            setSessions(await sessionsService.list());
-        } catch {
-            setSessions([]);
-        } finally {
-            setLoading(false);
-        }
+        setSessions(await sessionsService.list());
+        setLoading(false);
     };
 
     useEffect(() => { load(); }, []);
 
     const closeOne = async (id: string) => {
         setClosing(id);
-        await sessionsService.revoke(id).catch(() => null);
+        const ok = await sessionsService.revoke(id);
         setClosing(null);
+
+        if (!ok) return; // El toast de error ya salió; no tocamos la lista.
+
+        // Cerrar la sesión actual equivale a cerrar sesión aquí: sin esto el
+        // cliente seguiría con sus tokens hasta el siguiente 401.
+        if (sessions.find(s => s.id === id)?.current) return auth.logout();
+
         load();
     };
 
     const closeOthers = async () => {
         setClosing('others');
-        await sessionsService.revokeOthers().catch(() => null);
+        const ok = await sessionsService.revokeOthers();
         setClosing(null);
-        load();
+        if (ok) load();
     };
 
     if (loading) return <Skeleton active paragraph={{ rows: 4 }} />;
 
+    // Un usuario autenticado siempre tiene al menos ESTA sesión, así que una
+    // lista vacía solo puede significar que la carga falló.
     if (!sessions.length) {
-        return <Empty description="No hay sesiones activas" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        return (
+            <Empty
+                description="No se pudieron cargar tus sesiones"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+            >
+                <Button onClick={load}>Reintentar</Button>
+            </Empty>
+        );
     }
 
     const others = sessions.filter((s) => !s.current);

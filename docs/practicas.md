@@ -246,17 +246,65 @@ import { GET, POST, PUT, DELETE, Paginated } from '@src/core/http';
 export interface Cliente { id: number; nombre: string; status: boolean; }
 
 export const clientesService = {
-    list: () => GET<Cliente[]>('clientes'),
-    save: (data: Partial<Cliente>) =>
-        (data.id ? PUT : POST)<Cliente>('clientes', { params: data, msgSuccess: 'Cliente guardado' }),
-    remove: (id: number) => DELETE(`clientes/${id}`, { msgSuccess: 'Cliente eliminado' }),
+    // Listas → [] si falla
+    list: (): Promise<Cliente[]> =>
+        GET<Cliente[]>('clientes')
+            .then(res => Array.isArray(res) ? res : [])
+            .catch(() => []),
+
+    // Alta/edición → la entidad guardada, o null si falla
+    save: (data: Partial<Cliente>): Promise<Cliente | null> =>
+        (data.id ? PUT : POST)<Cliente>('clientes', { params: data, msgSuccess: 'Cliente guardado' })
+            .catch(() => null),
+
+    // Acciones sin cuerpo de respuesta → boolean
+    remove: (id: number): Promise<boolean> =>
+        DELETE(`clientes/${id}`, { msgSuccess: 'Cliente eliminado' })
+            .then(() => true)
+            .catch(() => false),
 };
 ```
 
-- `GET/POST/PUT/DELETE` inyectan el token, manejan 401 (logout automático) y
-  muestran mensajes de éxito/error (`msgSuccess`, `msgError`, `hideNotification`).
+- `GET/POST/PUT/DELETE` inyectan el token, renuevan la sesión ante un 401,
+  manejan el logout automático y muestran los mensajes de éxito/error
+  (`msgSuccess`, `msgError`, `hideNotification`).
 - Respuestas paginadas de servidor usan la forma `Paginated<T>`
   (`{ data, total, page, page_size }`).
+
+#### Contrato de resultado (obligatorio)
+
+**Un servicio nunca rechaza: devuelve un valor centinela que dice si funcionó.**
+`core/http.ts` ya le mostró el error al usuario, así que el `.catch` del servicio
+solo traduce el fallo a un valor:
+
+| Tipo de operación | Devuelve | Centinela de fallo |
+|---|---|---|
+| Listar | `T[]` | `[]` |
+| Obtener uno | `T \| null` | `null` |
+| Crear / editar | `T \| null` (la entidad guardada) | `null` |
+| Borrar / acción sin respuesta | `boolean` | `false` |
+
+**Y el llamador SIEMPRE comprueba ese valor antes de tocar el estado.** Es la
+mitad que se olvida: dar por hecho que un `await` que no lanzó salió bien deja
+la UI mintiendo —la fila desaparece de la tabla, el avatar se borra en pantalla,
+el modal se cierra— mientras el backend rechazó la operación.
+
+```ts
+// MAL: el modal se cierra y la lista se refresca aunque haya fallado
+await clientesService.save(values);
+setOpen(false);
+refetch();
+
+// BIEN: el resultado decide
+const guardado = await clientesService.save(values);
+if (!guardado) return;      // el toast de error ya salió
+setOpen(false);
+refetch();
+```
+
+Para actualizaciones optimistas (pintar el cambio antes de la respuesta) el
+patrón es guardar el estado previo y **revertirlo** si falla; ver
+`store/notifications.store.ts`, que es la referencia del núcleo.
 
 ### Rutas y menú
 

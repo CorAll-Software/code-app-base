@@ -14,8 +14,10 @@ export const portalPhotoService = {
         console.warn('[plantilla] portalPhotoService.uploadFoto no implementado');
         return null;
     },
-    deleteFoto: async (): Promise<void> => {
-        // TODO: return DELETE('auth/foto', {});
+    /** `false` = no se pudo eliminar; el llamador NO debe limpiar el avatar. */
+    deleteFoto: async (): Promise<boolean> => {
+        // TODO: return DELETE('auth/foto', {}).then(() => true).catch(() => false);
         console.warn('[plantilla] portalPhotoService.deleteFoto no implementado');
+        return false;
     },
 };

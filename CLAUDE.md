@@ -31,6 +31,9 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
   (`backend/src/core/session.ts`); todo `save_*` recibe `token_cr: user.sid`.
 - Frontend: HTTP solo vía `core/http.ts` (GET/POST tipados con toasts);
   rutas en `router.config.tsx` (lazy) + menú en `menu.config.tsx`, ambos con `slug`.
+- Los servicios NUNCA rechazan: devuelven centinela (`[]` / `null` / `false`) y
+  **el llamador lo comprueba antes de tocar el estado**. Un `await` que no lanzó
+  no significa que haya funcionado (§4 de `docs/practicas.md`).
 - Al agregar un módulo, seguir el checklist §6 de `docs/practicas.md`
   (BD → backend → frontend → sincronizar enum_module/AuditModule).
 - No agregar dependencias sin necesidad real; imitar patrones de `modules/core`
