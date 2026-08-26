@@ -57,3 +57,4 @@ Ver `../docs/practicas.md` y `../docs/prompt-nuevo-modulo.md`.
 Resumen: crear `src/modules/<modulo>/<modulo>.api.ts`, registrarlo en
 `router.ts`, declarar sus slugs en `core/permissions.constants.ts` (y en el
 gemelo del frontend + seed SQL), y protegido con el guard de permisos.
+│   ├── permissions.ts          # Caché de permisos con respaldo en BD

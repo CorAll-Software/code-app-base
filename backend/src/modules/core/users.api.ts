@@ -1,6 +1,7 @@
 import { execProcedure } from '@core/db/connection';
 import { notifySessionClose, notifyUserClose, notifyUserReload } from '@modules/core/auth.ws';
 import { revokeUserSessions } from '@core/session';
+import { invalidateUsersPermissions } from '@core/permissions';
 import { logAudit, extractClientIp } from '@core/audit.helper';
 import { Elysia, t } from 'elysia';
 import { authPlugin } from '@core/auth.guard';
@@ -146,6 +147,8 @@ export const UsersApi = new Elysia()
             closed.forEach(notifySessionClose)
             notifyUserClose(data.id)
         } else {
+            // Puede haber cambiado `rol_sistema`: la caché de permisos ya no vale.
+            await invalidateUsersPermissions([data.id])
             notifyUserReload(data.id)
         }
         return enrichWithFileUrl(result.result);

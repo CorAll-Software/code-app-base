@@ -6,7 +6,6 @@ DECLARE
 	result1 json;
 	_user_id integer;
 	_now bigint;
-	_is_root boolean;
 	_touch_login boolean;
 BEGIN
 	_user_id := cast(req ->> 'id' as integer);
@@ -18,13 +17,6 @@ BEGIN
 	IF _user_id IS NULL THEN
 		RAISE EXCEPTION 'El id de usuario es requerido';
 	END IF;
-
-	-- Verificar si el usuario tiene algún rol de sistema ( ROOT )
-	SELECT EXISTS (
-		SELECT 1 FROM core.user_roles ur
-		JOIN core.roles r ON r.id = ur.role_id
-		WHERE ur.user_id = _user_id AND r.is_system = TRUE AND ur.status = true
-	) INTO _is_root;
 
 	IF _touch_login THEN
 		UPDATE core.users
@@ -40,7 +32,9 @@ BEGIN
 			'telefono', u.phone,
 			'avatar', u.foto_url,
 			'roles', COALESCE(roles.lista, '[]'::json),
-			'permisos', COALESCE(perms.lista, '[]'::json)
+			-- Fuente única de los permisos efectivos: la misma función que usa
+			-- el backend para recargar la caché de Redis.
+			'permisos', core.get_user_permissions(json_build_object('user_id', u.id))
 		)
 	INTO result1
 	FROM core.users u
@@ -56,29 +50,6 @@ BEGIN
 		  AND r.status   = true
 		  AND r.enable   = true
 	) roles ON TRUE
-	LEFT JOIN LATERAL (
-		SELECT json_agg(slug ORDER BY slug) AS lista
-		FROM (
-			SELECT DISTINCT p.slug
-			FROM core.permissions p
-			WHERE p.status = true
-			  AND (
-				_is_root = true
-				OR
-				p.id IN (
-					SELECT rp.permission_id
-					FROM core.user_roles ur
-					JOIN core.roles r        ON r.id  = ur.role_id
-					JOIN core.role_permissions rp ON rp.role_id = r.id
-					WHERE ur.user_id  = u.id
-					  AND ur.status   = true
-					  AND r.status    = true
-					  AND r.enable    = true
-					  AND rp.status   = true
-				)
-			  )
-		) sq
-	) perms ON TRUE
 	WHERE u.id = _user_id
 	  AND u.status = true
 	  AND u.enable = true;

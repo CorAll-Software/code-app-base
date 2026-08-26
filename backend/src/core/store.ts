@@ -4,6 +4,12 @@ import { RedisClient } from 'bun'
 import { configServer } from '@/config'
 import { PermisoSlug } from './permisos.type';
 
+/**
+ * Centinela que distingue "caché cebada, este usuario no tiene permisos" de
+ * "caché fría". No puede colisionar con un slug real (`modulo.accion`).
+ */
+const PERMISSIONS_CACHED_MARKER = '__cached__';
+
 export class UserStore {
     private client: RedisClient
 
@@ -49,29 +55,50 @@ export class UserStore {
         return null;
     }
 
-    async setUserPermissions(userId: string, permissions: string[]) {
+    // ── Permisos ─────────────────────────────────────────────────────────────
+    // Igual que las sesiones, Redis es solo CACHÉ: la fuente de verdad es
+    // core.get_user_permissions. Ver core/permissions.ts, que resuelve el
+    // arranque en frío y la invalidación.
+
+    /**
+     * Deja en caché los permisos del usuario. Se marca con un miembro centinela
+     * porque un usuario sin ningún permiso es un caso legítimo: sin él, un set
+     * vacío (que en Redis equivale a no existir) se confundiría con caché fría
+     * y provocaría una consulta a BD en cada petición.
+     */
+    async setUserPermissions(userId: number | string, permissions: string[]) {
         const key = `user:${userId}:permissions`;
         await this.exec(async (c) => {
             await c.del(key);
-            if (permissions && permissions.length > 0) {
-                await c.sadd(key, ...permissions);
-            }
+            await c.sadd(key, PERMISSIONS_CACHED_MARKER, ...(permissions || []));
+            await c.expire(key, configServer.auth.refreshExpiresIn);
         });
     }
 
-    async getUserPermissions(userId: string): Promise<string[] | null> {
-        return await this.exec(async (c) => {
-            const data = await c.smembers(`user:${userId}:permissions`);
-            return data || null;
+    /** `false` = caché fría (nunca cebada o expirada), hay que ir a BD. */
+    async hasCachedPermissions(userId: number | string): Promise<boolean> {
+        const result = await this.exec(async (c) => {
+            return await c.sismember(`user:${userId}:permissions`, PERMISSIONS_CACHED_MARKER);
         });
+        return !!result;
     }
 
-    async hasPermission(userId: string, permission: PermisoSlug): Promise<boolean> {
+    async hasPermission(userId: number | string, permission: PermisoSlug): Promise<boolean> {
         const key = `user:${userId}:permissions`;
         const result = await this.exec(async (c) => {
             return await c.sismember(key, permission);
         });
         return !!result;
+    }
+
+    /**
+     * Descarta la caché del usuario. La siguiente petición la recarga desde BD,
+     * así que invalidar de más solo cuesta una consulta.
+     */
+    async clearUserPermissions(userId: number | string) {
+        await this.exec(async (c) => {
+            await c.del(`user:${userId}:permissions`);
+        });
     }
 
     // ── Sesiones ─────────────────────────────────────────────────────────────

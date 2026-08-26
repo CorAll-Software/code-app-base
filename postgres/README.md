@@ -82,6 +82,16 @@ Una función por archivo en `<schema>/<entidad>/`:
 - `delete_<entidad>` — SOFT delete (`status = FALSE`), nunca `DELETE` físico.
 - `get_<entidad>_by_id` — igual a get pero filtrando por `(req->>'id')`.
 
+## Permisos efectivos
+
+`core.get_user_permissions(req json)` es la **única** definición de qué puede
+hacer un usuario: devuelve el array de slugs, aplicando el bypass de los roles
+de sistema. La usan `core.get_user_login_data` (payload de sesión) y el backend
+para recargar la caché de Redis, así que la regla no se duplica en dos sitios.
+
+`core.list_users_by_role(req json)` devuelve los ids con un rol asignado. Es lo
+que permite invalidar la caché de los afectados al editar ese rol.
+
 ## Auditoría (a nivel de BD)
 
 - NO crear bitácora propia por esquema: la auditoría es transversal en

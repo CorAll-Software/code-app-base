@@ -150,9 +150,32 @@ GET/DELETE /auth/sessions[/:id] → listar y cerrar sesiones del propio usuario
   1. `backend/src/core/permissions.constants.ts`
   2. `frontend/src/core/permissions.constants.ts` (gemelo exacto)
   3. `postgres/core/seed-permissions.sql` (fuente de verdad en BD)
-- Los permisos efectivos se cachean en Redis por usuario; el guard consulta
-  `userStore.hasPermission()`. Al editar roles, el backend notifica por WS y el
-  frontend recarga la sesión.
+
+#### Caché de permisos
+
+Los permisos efectivos se cachean en Redis por usuario (`user:<id>:permissions`).
+El contrato es el mismo que el de las sesiones: **Redis es caché,
+`core.get_user_permissions` es la fuente de verdad**. Todo pasa por
+`core/permissions.ts`:
+
+- `userHasAnyPermission()` — lo que usa el guard. Si la clave no está (Redis
+  reiniciado, TTL vencido o invalidación reciente) recarga desde BD **en la misma
+  petición**. Nunca devuelve 403 por caché fría, y con Redis caído el sistema
+  degrada a consultar BD en vez de bloquear a todo el mundo.
+- `primeUserPermissions()` — carga desde BD y ceba la caché.
+- `invalidateUsersPermissions()` — borra las claves. La recarga es perezosa, así
+  que invalidar de más solo cuesta una consulta.
+
+La caché se ceba en el login, en cada `/auth/refresh` y en `verify-token`, y
+lleva TTL (`JWT_REFRESH_EXPIRE_IN`) para que no sobreviva a usuarios que ya no
+vuelven. Un set vacío es un caso legítimo (usuario sin permisos), así que se
+marca con un miembro centinela para distinguirlo de "caché fría".
+
+**Al cambiar quién puede qué hay que invalidar.** Ya está resuelto para el
+núcleo: editar un rol (`roles.api.ts` → `propagarCambioDeRol`) invalida a todos
+sus miembros vía `core.list_users_by_role` y les manda `notifyUserReload`;
+cambiar los roles de un usuario hace lo propio en `users.api.ts`. Si un módulo
+de negocio altera permisos por su cuenta, debe invalidar igual.
 
 ### CAPTCHA (Cap)
 

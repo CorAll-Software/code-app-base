@@ -2,7 +2,6 @@
 import { execProcedure } from '@core/db/connection';
 import { extractRefreshToken, extractToken, generateAccessToken, verifyToken } from "@core/jwt";
 import { notifySessionClose, notifyUserClose } from '@modules/core/auth.ws';
-import { userStore } from '@core/store';
 import {
     createSession,
     listSessions,
@@ -10,6 +9,7 @@ import {
     revokeUserSessions,
     rotateSession,
 } from '@core/session';
+import { cacheUserPermissions } from '@core/permissions';
 import { logAudit, extractClientIp } from '@core/audit.helper';
 import { emailService } from '@core/email/email-service';
 import { getS3ObjectUrl } from '@core/s3';
@@ -111,7 +111,7 @@ export const AuthApi = new Elysia()
         }
 
         const token = buildAccessToken(user, created.session.id)
-        await userStore.setUserPermissions(user.id, user.permisos || [])
+        await cacheUserPermissions(user.id, user.permisos)
 
         setSessionCookies(cookie, token, created.refreshToken)
 
@@ -161,7 +161,7 @@ export const AuthApi = new Elysia()
 
         const user = await signUserAvatar(userResult.result)
         const token = buildAccessToken(user, rotated.sessionId)
-        await userStore.setUserPermissions(user.id, user.permisos || [])
+        await cacheUserPermissions(user.id, user.permisos)
 
         setSessionCookies(cookie, token, rotated.refreshToken)
 
@@ -226,7 +226,7 @@ export const AuthApi = new Elysia()
                 return status(400, { message: userResult.error })
             }
 
-            await userStore.setUserPermissions(userResult.result.id, userResult.result.permisos || [])
+            await cacheUserPermissions(userResult.result.id, userResult.result.permisos)
 
             return { user: await signUserAvatar(userResult.result), expiresIn: accessExpiresIn }
         }, {

@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import { validateToken } from '@core/jwt';
-import { userStore } from '@core/store';
+import { userHasAnyPermission } from '@core/permissions';
 import { PermisoSlug } from '@core/permisos.type';
 
 /**
@@ -44,18 +44,9 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
                     // 3. Superusuario (Rol Administrador o ID 1) pasa cualquier restricción
                     if (user?.isAdmin) return;
 
-                    // 4. Verificación Atómica de Permisos contra Redis
-                    const permissions = Array.isArray(value)
-                        ? value
-                        : [value];
-
-                    let hasAccess = false;
-                    for (const permissionString of permissions as string[]) {
-                        if (await userStore.hasPermission(user.id, permissionString as any)) {
-                            hasAccess = true;
-                            break;
-                        }
-                    }
+                    // 4. Permisos: Redis primero, BD si la caché está fría
+                    const permissions = (Array.isArray(value) ? value : [value]) as string[];
+                    const hasAccess = await userHasAnyPermission(user.id, permissions);
 
                     // 5. Bloqueo si no tiene el privilegio exacto
                     if (!hasAccess) {

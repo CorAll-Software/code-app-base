@@ -2,9 +2,25 @@ import { execProcedure } from '@core/db/connection';
 import { logAudit, extractClientIp } from '@core/audit.helper';
 import { Elysia } from 'elysia';
 import { authPlugin } from '@core/auth.guard';
+import { invalidateUsersPermissions, listUsersByRole } from '@core/permissions';
 import { PERMISSIONS } from '@core/permissions.constants';
+import { notifyUserReload } from '@modules/core/auth.ws';
 
 const path = '/roles';
+
+/**
+ * Editar un rol cambia los permisos efectivos de todos sus miembros. Sin esto
+ * seguirían operando con la copia vieja en Redis hasta que su token se renovara.
+ * Se invalida la caché (la recarga es perezosa, desde BD) y se avisa por WS a
+ * los que estén conectados para que refresquen también su UI.
+ */
+async function propagarCambioDeRol(roleId: number) {
+    const afectados = await listUsersByRole(roleId);
+    if (!afectados.length) return;
+
+    await invalidateUsersPermissions(afectados);
+    afectados.forEach(notifyUserReload);
+}
 
 const ROLE_FIELD_LIMITS: Record<string, { label: string; max: number }> = {
     name: { label: 'Nombre del Rol', max: 100 },
@@ -50,6 +66,9 @@ export const RolesApi = new Elysia()
         if (result.error) {
             return status(400, { message: result.error });
         }
+        // Un rol recién creado aún no tiene miembros, pero el alta puede venir
+        // con permisos ya asignados si se reactiva un rol existente.
+        await propagarCambioDeRol(result.result?.id);
         logAudit({
             userId: (user as any).id,
             module: 'ADMIN',
@@ -76,6 +95,8 @@ export const RolesApi = new Elysia()
         if (result.error) {
             return status(400, { message: result.error });
         }
+
+        await propagarCambioDeRol(data.id);
 
         // Datos para auditoría con mapeo de permissions
         const auditNewData = {
