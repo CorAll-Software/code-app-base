@@ -292,6 +292,6 @@ frontend App.tsx (handler WS type === 'notification')
 - TypeScript estricto; ejecutar `bun run tsc` (backend) y `bun run build`
   (frontend) antes de dar por cerrado un cambio.
 - Sin dependencias nuevas salvo necesidad real; el stack ya cubre tablas,
-  gráficas (`@ant-design/plots`, chart.js), export (exceljs, jspdf), mapas (leaflet).
+  gráficas (`@ant-design/plots`, chart.js) y export (exceljs, jspdf).
 - Commits pequeños y descriptivos en español.
 - Secretos SOLO en `.env` (gitignorado); `example.env` documenta las claves sin valores.

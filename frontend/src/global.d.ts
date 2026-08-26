@@ -11,20 +11,6 @@ interface Window {
     _routeApi: string
     _routeWs: string
     _routeCaptcha: string
-    _s3Bucket: string
-    _accountId: string
-    _projectId: number
-    _projectInfo: {
-        id: number,
-        name: string,
-        description: string,
-        company?: string,
-        logo: string
-    }
-    _params: {
-        [key: string]: string
-    }
-    _userData: any
     messageApi: MessageInstance
     notificationApi: NotificationInstance
 }

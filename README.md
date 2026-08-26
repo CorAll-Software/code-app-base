@@ -62,7 +62,7 @@ app-base/
 - **Auditoría** transversal (`core.audit_log`) con visor en el frontend.
 - **Notificaciones** en tiempo real (campana + store Zustand).
 - Componentes UI estándar: `DataTable`, `StandardPageLayout`, `StandardModalForm`,
-  `StandardFilters`, pickers de mapa (Leaflet), avatares.
+  `StandardFilters`, avatares.
 
 ## Cómo levantar el proyecto
 

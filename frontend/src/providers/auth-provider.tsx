@@ -2,7 +2,6 @@ import { UserSession } from '@src/core/types';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useFeedback } from './message.provider';
 import { PermisoSlug, SYSTEM_ROLES } from '@src/core/permissions.constants';
-import { useProyectosStore } from '@src/store/proyectos.store';
 import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
 
 export interface IAuthContext {
@@ -37,8 +36,6 @@ export const AuthProvider = ({ children }) => {
         if (userData.permisos) {
             setPermissions(new Set(userData.permisos));
         }
-        // Hidratar el store de proyectos con los datos del login
-        useProyectosStore.getState().setProyectos(userData.proyectos || []);
     };
 
     const logout = () => {
@@ -59,8 +56,6 @@ export const AuthProvider = ({ children }) => {
         }
         localStorage.removeItem(LOCAL_STORAGE_KEYS.TOKEN);
         setUser(null);
-        // Limpiar el store de proyectos al cerrar sesión
-        useProyectosStore.getState().reset();
     };
 
     const hasPermission = (permiso: PermisoSlug | PermisoSlug[]) => {
@@ -91,20 +86,14 @@ export const AuthProvider = ({ children }) => {
             });
             const json = await res.json();
             if (json.user) {
-                // Solo actualizar si hay cambios reales en permisos o proyectos
+                // Solo actualizar si hay cambios reales en permisos o identidad
                 const currentPerms = Array.from(permissions).sort().join(',');
                 const nextPerms = (json.user.permisos || []).sort().join(',');
-                
-                const currentProys = JSON.stringify(useProyectosStore.getState().proyectos.map(p => p.id).sort());
-                const nextProys = JSON.stringify((json.user.proyectos || []).map(p => p.id).sort());
 
-                if (currentPerms !== nextPerms || currentProys !== nextProys || user?.email !== json.user.email) {
+                if (currentPerms !== nextPerms || user?.email !== json.user.email) {
                     setUser(json.user);
                     if (json.user.permisos) {
                         setPermissions(new Set(json.user.permisos));
-                    }
-                    if (json.user.proyectos) {
-                        useProyectosStore.getState().setProyectos(json.user.proyectos);
                     }
                 }
             }

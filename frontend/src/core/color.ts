@@ -53,7 +53,6 @@ export const COLOR_PICKER_PALETTE = [
 export const ANT_COLORS = {
     textDescription: '#8c8c8c',
     primary:         '#1677ff',
-    primaryLegacy:   '#1890ff',
     warning:         '#faad14',
     success:         '#52c41a',
     error:           '#ff4d4f',

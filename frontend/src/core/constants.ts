@@ -25,6 +25,3 @@ export const PAGINATION = {
     DEFAULT_PAGE_SIZE: 10,
     LARGE_PAGE_SIZE: 20,
 } as const
-
-// NOTE: COLORS (Bootstrap legacy) ha sido eliminado — usar BRAND o SEMANTIC_COLORS de @src/core/color
-// NOTE: getColorsTag ha sido movido a @src/core/color
