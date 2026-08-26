@@ -30,3 +30,5 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
   (BD → backend → frontend → sincronizar enum_module/AuditModule).
 - No agregar dependencias sin necesidad real; imitar patrones de `modules/core`
   (backend) y `modules/equipo` (frontend) en lugar de inventar nuevos.
+- Commits en formato [Conventional Commits](https://www.conventionalcommits.org):
+  `<tipo>(alcance): <descripción en español>` (ver §7 de `docs/practicas.md`).

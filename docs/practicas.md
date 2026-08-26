@@ -293,5 +293,11 @@ frontend App.tsx (handler WS type === 'notification')
   (frontend) antes de dar por cerrado un cambio.
 - Sin dependencias nuevas salvo necesidad real; el stack ya cubre tablas,
   gráficas (`@ant-design/plots`, chart.js) y export (exceljs, jspdf).
-- Commits pequeños y descriptivos en español.
+- Commits pequeños y descriptivos, siguiendo [Conventional Commits](https://www.conventionalcommits.org):
+  `<tipo>[(alcance)][!]: <descripción>`. Tipos: `feat`, `fix`, `docs`, `refactor`,
+  `perf`, `test`, `build`, `ci`, `chore`, `style`, `revert`. Alcance = área tocada
+  (`backend`, `frontend`, `postgres`, `docs`) o el módulo (`auth`, `equipo`, …).
+  Descripción en **español**, minúscula, imperativo y sin punto final; `!` o footer
+  `BREAKING CHANGE:` para cambios incompatibles.
+  Ej.: `feat(equipo): permitir filtrar usuarios por rol`.
 - Secretos SOLO en `.env` (gitignorado); `example.env` documenta las claves sin valores.
