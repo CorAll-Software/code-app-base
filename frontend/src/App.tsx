@@ -15,6 +15,7 @@ import { ProfileDrawer } from './components/profile-drawer';
 import { useProfileDrawerStore } from './store/profile-drawer.store';
 import { NotificationsPopover } from './components/NotificationsPopover';
 import { useNotificationsStore } from './store/notifications.store';
+import { POST } from './core/http';
 
 const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
@@ -96,23 +97,8 @@ function App() {
           }
 
           if (data && typeof data === 'object') {
-            if (data.type === 'stock_request_feedback') {
-              if (data.estado === 'despachado') {
-                notification.success({
-                  message: `Solicitud Despachada: ${data.codigo}`,
-                  description: `Se despacharon ${data.cantidad_despachada} unidades. ${data.notas_despacho ? `Notas: ${data.notas_despacho}` : ''}`,
-                  placement: 'topRight',
-                  duration: 8,
-                });
-              } else if (data.estado === 'rechazado') {
-                notification.error({
-                  message: `Solicitud Rechazada: ${data.codigo}`,
-                  description: `Motivo: ${data.motivo_rechazo}`,
-                  placement: 'topRight',
-                  duration: 10,
-                });
-              }
-            }
+            // Eventos propios de un módulo: emitirlos con notifyUserJson en el
+            // backend y manejar aquí su `type`.
 
             if (data.type === 'notification' && data.payload) {
               const notif = data.payload;
@@ -155,42 +141,35 @@ function App() {
           }
 
           if (msg === 'reload') {
-            // Fetch de datos actualizados sin afectar el estado todavía
-            const token = localStorage.getItem('token');
-            if (token) {
-              fetch(window._routeApi + 'auth/verify-token', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-              }).then(async res => {
-                const json = await res.json();
-                if (json.user) {
-                  const pathSegments = window.location.pathname.split('/').filter(Boolean);
-                  const currentPath = pathSegments.join('/');
-                  
-                  if (currentPath && currentPath !== '') {
-                    const currentRoute = APP_ROUTES.find(r => 
-                      r.path === currentPath || 
-                      (r.path.includes(':') && currentPath.startsWith(r.path.split(':')[0]))
-                    );
-                    
-                    const nextPerms = new Set(json.user.permisos || []);
-                    const checkSlug = (slug: any) => {
-                      if (!slug) return true;
-                      if (json.user.roles?.some((r: any) => r.name === 'Administrador' || r.id === 1)) return true;
-                      const slugs = Array.isArray(slug) ? slug : [slug];
-                      return slugs.some(s => nextPerms.has(s));
-                    };
+            // Consultar los permisos nuevos sin tocar el estado todavía
+            try {
+              const json: any = await POST('auth/verify-token', { hideNotification: true });
+              if (json?.user) {
+                const pathSegments = window.location.pathname.split('/').filter(Boolean);
+                const currentPath = pathSegments.join('/');
 
-                    if (currentRoute && !checkSlug(currentRoute.slug)) {
-                      // Solo si perdió acceso a donde está parado, forzar recarga y redirección
-                      await authContext.refreshPermissions();
-                      window.location.href = '/';
-                    }
+                if (currentPath && currentPath !== '') {
+                  const currentRoute = APP_ROUTES.find(r =>
+                    r.path === currentPath ||
+                    (r.path.includes(':') && currentPath.startsWith(r.path.split(':')[0]))
+                  );
+
+                  const nextPerms = new Set(json.user.permisos || []);
+                  const checkSlug = (slug: any) => {
+                    if (!slug) return true;
+                    if (json.user.roles?.some((r: any) => r.name === 'Administrador' || r.id === 1)) return true;
+                    const slugs = Array.isArray(slug) ? slug : [slug];
+                    return slugs.some(s => nextPerms.has(s));
+                  };
+
+                  if (currentRoute && !checkSlug(currentRoute.slug)) {
+                    // Solo si perdió acceso a donde está parado, forzar recarga y redirección
+                    await authContext.refreshPermissions();
+                    window.location.href = '/';
                   }
                 }
-              }).catch(() => { });
-            }
+              }
+            } catch { /* sesión caída: el 401 ya dispara el logout */ }
           }
         });
       };

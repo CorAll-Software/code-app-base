@@ -1,5 +1,6 @@
 import { execProcedure } from '@core/db/connection';
-import { notifyUserClose, notifyUserReload } from '@modules/core/auth.ws';
+import { notifySessionClose, notifyUserClose, notifyUserReload } from '@modules/core/auth.ws';
+import { revokeUserSessions } from '@core/session';
 import { logAudit, extractClientIp } from '@core/audit.helper';
 import { Elysia, t } from 'elysia';
 import { authPlugin } from '@core/auth.guard';
@@ -58,6 +59,8 @@ export const UsersApi = new Elysia()
             return { message: usersResult.error };
         }
         return usersResult.result;
+    }, {
+        requirePermission: null
     })
     .get(`${path}`, async ({ set }) => {
         const usersResult = await execProcedure('core.get_users', [{}]);
@@ -78,6 +81,7 @@ export const UsersApi = new Elysia()
             return { message: lengthError };
         }
         data.user_cr = (user as any).id;
+        data.token_cr = (user as any).sid;
 
         // Parsear arrays de JSON (Elysia multipart puede enviar arrays como strings si vienen de FormData)
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
@@ -116,6 +120,7 @@ export const UsersApi = new Elysia()
             return { message: lengthError };
         }
         data.user_cr = (user as any).id;
+        data.token_cr = (user as any).sid;
 
         const isDelete = data.status === false || data.status === 'false';
 
@@ -130,11 +135,18 @@ export const UsersApi = new Elysia()
         }
         // logAudit({ userId: (user as any).id, module: 'ADMIN', tableName: 'users', recordId: data.id, action: isDelete ? 'DELETE' : 'UPDATE', oldData, newData: result.result, ipAddress: extractClientIp(headers) });
 
-        // Si se deshabilita el usuario, cerrar sus sesiones WS activas
+        // Si se deshabilita el usuario, revocar sus sesiones (no solo el socket:
+        // el access token seguiría siendo válido hasta expirar).
         if (data.enable === false || data.status === false || data.status === 'false') {
-            notifyUserClose(data.id, 'core')
+            const closed = await revokeUserSessions(Number(data.id), {
+                reason: 'ADMIN',
+                actorUserId: (user as any).id,
+                actorSessionId: (user as any).sid,
+            })
+            closed.forEach(notifySessionClose)
+            notifyUserClose(data.id)
         } else {
-            notifyUserReload(data.id, 'core')
+            notifyUserReload(data.id)
         }
         return enrichWithFileUrl(result.result);
     }, {
@@ -188,6 +200,7 @@ export const UsersApi = new Elysia()
             id: Number(id),
             foto_url: s3Key,
             user_cr: (user as any).id,
+            token_cr: (user as any).sid,
         }]);
         if (updateResult.error) {
             set.status = 400;
@@ -206,6 +219,7 @@ export const UsersApi = new Elysia()
             id: Number(id),
             foto_url: null,
             user_cr: (user as any).id,
+            token_cr: (user as any).sid,
         }]);
         if (result.error) {
             set.status = 400;
@@ -218,13 +232,19 @@ export const UsersApi = new Elysia()
     })
     .delete(`${path}/:id`, async ({ params: { id }, set, headers, user }) => {
         // const oldData = await getOldDataForAudit('core.delete_user', 'users', Number(id));
-        const result = await execProcedure('core.delete_user', [{ id }]);
+        const result = await execProcedure('core.delete_user', [{ id, user_cr: (user as any).id, token_cr: (user as any).sid }]);
         if (result.error) {
             set.status = 400;
             return { message: result.error };
         }
         // logAudit({ userId: (user as any).id, module: 'ADMIN', tableName: 'users', recordId: Number(id), action: 'DELETE', oldData, ipAddress: extractClientIp(headers) });
-        notifyUserClose(id, 'core')
+        const closed = await revokeUserSessions(Number(id), {
+            reason: 'ADMIN',
+            actorUserId: (user as any).id,
+            actorSessionId: (user as any).sid,
+        })
+        closed.forEach(notifySessionClose)
+        notifyUserClose(id)
         return result.result;
     }, {
         requirePermission: PERMISSIONS.USUARIOS.DELETE
@@ -233,13 +253,19 @@ export const UsersApi = new Elysia()
         const { id, password } = body as any;
         const password_hash = hashSync(password);
         // const oldData = await getOldDataForAudit('core.update_user_password', 'users', id);
-        const result = await execProcedure('core.update_user_password', [{ id, password_hash }]);
+        const result = await execProcedure('core.update_user_password', [{ id, password_hash, user_cr: (user as any).id, token_cr: (user as any).sid }]);
         if (result.error) {
             set.status = 400;
             return { message: result.error };
         }
         // logAudit({ userId: (user as any).id, module: 'ADMIN', tableName: 'users', recordId: id, action: 'UPDATE', oldData, newData: { id, password_changed: true }, ipAddress: extractClientIp(headers) });
-        notifyUserClose(id, 'core')
+        const closed = await revokeUserSessions(Number(id), {
+            reason: 'PASSWORD_CHANGE',
+            actorUserId: (user as any).id,
+            actorSessionId: (user as any).sid,
+        })
+        closed.forEach(notifySessionClose)
+        notifyUserClose(id)
         return result.result;
     }, {
         requirePermission: PERMISSIONS.USUARIOS.EDIT

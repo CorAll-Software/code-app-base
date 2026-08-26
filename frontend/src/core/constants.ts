@@ -15,7 +15,10 @@ export const scrollbarWidth = () => {
  * Centraliza los literales de string para evitar typos.
  */
 export const LOCAL_STORAGE_KEYS = {
+    /** Access token (JWT corto) que se manda en la cabecera Authorization. */
     TOKEN: 'token',
+    /** Refresh token rotativo: solo lo usa core/http.ts para renovar la sesión. */
+    REFRESH_TOKEN: 'refresh_token',
 } as const
 
 /**

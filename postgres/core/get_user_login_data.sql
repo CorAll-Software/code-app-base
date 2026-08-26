@@ -7,9 +7,13 @@ DECLARE
 	_user_id integer;
 	_now bigint;
 	_is_root boolean;
+	_touch_login boolean;
 BEGIN
 	_user_id := cast(req ->> 'id' as integer);
 	_now := extract(epoch from now())::bigint;
+	-- Solo el LOGIN actualiza last_login. Las renovaciones de token (refresh y
+	-- verify-token) reusan esta función pero no deben tocar el "último ingreso".
+	_touch_login := COALESCE((req ->> 'touch_login')::boolean, FALSE);
 
 	IF _user_id IS NULL THEN
 		RAISE EXCEPTION 'El id de usuario es requerido';
@@ -22,9 +26,11 @@ BEGIN
 		WHERE ur.user_id = _user_id AND r.is_system = TRUE AND ur.status = true
 	) INTO _is_root;
 
-	UPDATE core.users
-	SET last_login = _now
-	WHERE id = _user_id;
+	IF _touch_login THEN
+		UPDATE core.users
+		SET last_login = _now
+		WHERE id = _user_id;
+	END IF;
 
 	SELECT
 		json_build_object(

@@ -129,6 +129,7 @@ AS $function$
         -- Actualizar contraseña en core.users
         UPDATE core.users
         SET password_hash = _password_hash,
+            user_up       = _user_id,
             date_up       = _now
         WHERE id = _user_id;
 

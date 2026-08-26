@@ -22,8 +22,13 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
 - Permisos = slugs `modulo.accion` con **triple sincronización**:
   `backend/src/core/permissions.constants.ts` ↔ `frontend/src/core/permissions.constants.ts`
   ↔ `postgres/core/seed-permissions.sql`.
-- Tablas: soft-delete con `status`, fechas epoch BIGINT, columnas de auditoría
-  `user_cr/date_cr/user_up/date_up` al final. Ver `postgres/README.md`.
+- Tablas de entidad: soft-delete con `status`, fechas epoch BIGINT, columnas de
+  auditoría `user_cr/token_cr/date_cr` + `user_up/token_up/date_up` al final
+  (`token_*` = `core.user_sessions.id`, el `sid` del token). Las tablas de evento
+  (`notifications`, `password_recovery`, `user_sessions`) NO lo llevan.
+  Ver `postgres/README.md`.
+- Sesión: access token corto + refresh rotativo en `core.user_sessions`
+  (`backend/src/core/session.ts`); todo `save_*` recibe `token_cr: user.sid`.
 - Frontend: HTTP solo vía `core/http.ts` (GET/POST tipados con toasts);
   rutas en `router.config.tsx` (lazy) + menú en `menu.config.tsx`, ambos con `slug`.
 - Al agregar un módulo, seguir el checklist §6 de `docs/practicas.md`

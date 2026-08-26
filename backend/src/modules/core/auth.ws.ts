@@ -1,36 +1,45 @@
 import { verifyToken } from "@core/jwt";
+import { isSessionActive } from "@core/session";
 import { Elysia } from "elysia";
 import { ElysiaWS } from "elysia/ws";
 
-export const wsSesssion = new Map<string, { ws: ElysiaWS, user: { id: string | number, type: 'core' | 'client', client_id?: string | number } }>()
+/**
+ * Sockets abiertos, indexados por `wsid` (lo genera el cliente, ver
+ * frontend/src/core/ws.ts). Cada entrada recuerda el usuario y la SESIÓN
+ * (`sid`) del token con el que se conectó, para poder cerrar un dispositivo
+ * concreto sin tocar los demás.
+ */
+export const wsSessions = new Map<string, { ws: ElysiaWS, user: { id: string | number, sid: string } }>()
 
-export function notifyUserClose(userId: string | number, userType: 'core' | 'client' = 'core') {
-    for (const [wsid, session] of wsSesssion.entries()) {
-        if (String(session.user?.id) === String(userId) && session.user?.type === userType) {
-            try {
-                session.ws.send('close')
-                session.ws.terminate()
-            } catch { }
-            wsSesssion.delete(wsid)
+function closeSocket(wsid: string, session: { ws: ElysiaWS }) {
+    try {
+        session.ws.send('close')
+        session.ws.terminate()
+    } catch { }
+    wsSessions.delete(wsid)
+}
+
+/** Cierra TODOS los sockets del usuario (cambio de contraseña, baja, etc.). */
+export function notifyUserClose(userId: string | number) {
+    for (const [wsid, session] of wsSessions.entries()) {
+        if (String(session.user?.id) === String(userId)) {
+            closeSocket(wsid, session)
         }
     }
 }
 
-export function notifyClientClose(clientId: string | number) {
-    for (const [wsid, session] of wsSesssion.entries()) {
-        if (session.user?.type === 'client' && String(session.user?.client_id) === String(clientId)) {
-            try {
-                session.ws.send('close')
-                session.ws.terminate()
-            } catch { }
-            wsSesssion.delete(wsid)
+/** Cierra solo los sockets de una sesión concreta (pestaña "Sesiones"). */
+export function notifySessionClose(sessionId: string) {
+    for (const [wsid, session] of wsSessions.entries()) {
+        if (session.user?.sid === sessionId) {
+            closeSocket(wsid, session)
         }
     }
 }
 
-export function notifyUserReload(userId: string | number, userType: 'core' | 'client' = 'core') {
-    for (const [wsid, session] of wsSesssion.entries()) {
-        if (String(session.user?.id) === String(userId) && session.user?.type === userType) {
+export function notifyUserReload(userId: string | number) {
+    for (const session of wsSessions.values()) {
+        if (String(session.user?.id) === String(userId)) {
             try {
                 session.ws.send('reload')
             } catch { }
@@ -38,20 +47,14 @@ export function notifyUserReload(userId: string | number, userType: 'core' | 'cl
     }
 }
 
-export function notifyUserJson(userId: string | number, data: unknown, userType: 'core' | 'client' = 'core') {
-    for (const [wsid, session] of wsSesssion.entries()) {
-        if (String(session.user?.id) === String(userId) && session.user?.type === userType) {
+export function notifyUserJson(userId: string | number, data: unknown) {
+    for (const session of wsSessions.values()) {
+        if (String(session.user?.id) === String(userId)) {
             try {
                 session.ws.send(JSON.stringify(data))
             } catch { }
         }
     }
-}
-
-interface UserPayload {
-    id: string | number;
-    user_type?: 'core' | 'client';
-    client_id?: string | number;
 }
 
 export const AuthWs = new Elysia()
@@ -64,22 +67,15 @@ export const AuthWs = new Elysia()
             if (!token || !wsid) return ws.terminate()
 
             try {
-                // Verificar token
-                const user = await verifyToken(token)
-                if (!user) {
+                // Verificar token y que la sesión siga viva
+                const claims = await verifyToken(token)
+                if (!claims?.sid || !(await isSessionActive(claims.sid))) {
                     return ws.terminate()
                 }
 
-                // Agregar socket al Map
-                const payload = user as UserPayload;
-                const userType = payload.user_type || 'core';
-                wsSesssion.set(wsid, {
+                wsSessions.set(wsid, {
                     ws,
-                    user: {
-                        id: payload.id,
-                        type: userType,
-                        client_id: payload.client_id
-                    }
+                    user: { id: claims.id, sid: claims.sid }
                 })
 
             } catch {
@@ -95,6 +91,6 @@ export const AuthWs = new Elysia()
             // console.log('🔗 WebSocket connection closed')
             const { wsid } = ws.data.query
             // Eliminar socket del Map
-            wsSesssion.delete(wsid)
+            wsSessions.delete(wsid)
         }
     })

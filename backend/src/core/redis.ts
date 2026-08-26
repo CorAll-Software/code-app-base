@@ -41,7 +41,7 @@ class RedisWebSocketService {
             unregister: () => { this.topicHandlers.delete(type) },
             addUser: (userId: string) => {
                 this.client.set(`ws:user:${userId}`, this.instanceId);
-                this.client.expire(`ws:user:${userId}`, configServer.auth.expiresIn); // Expira según el tiempo de vida del token
+                this.client.expire(`ws:user:${userId}`, configServer.auth.refreshExpiresIn); // Expira con la sesión (refresh token)
                 const handler = this.topicHandlers.get(type);
                 if (handler) {
                     handler.userIds.add(userId);

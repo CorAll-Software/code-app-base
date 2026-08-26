@@ -24,7 +24,9 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
 
 - [ ] `backend/`: `cp example.env .env` y completar:
   - `JWT_SECRET` (generar uno fuerte: `openssl rand -base64 48`)
-  - `DB_*` (PostgreSQL), `REDIS_URL`
+  - `JWT_ACCESS_EXPIRE_IN` / `JWT_REFRESH_EXPIRE_IN` (vida del access token y de
+    la sesión; 15 min / 7 días por defecto)
+  - `DB_*` (PostgreSQL 18+, se usa `uuidv7()` nativo), `REDIS_URL`
   - `AWS_*` (S3/MinIO) y `EMAIL_*` si se usan desde el día 1
   - `TEAM_NAME` (aparece en correos y UI)
 - [ ] `frontend/.env` ya apunta a localhost; completar `.env.production` / `.env.qas`
@@ -66,6 +68,8 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
       con el usuario admin.
 - [ ] Crear un segundo usuario y un rol de prueba desde Ajustes → verificar que los
       permisos ocultan el menú correctamente.
+- [ ] Perfil → **Sesiones**: entrar desde otro navegador, comprobar que aparecen
+      las dos sesiones y que «Cerrar las demás sesiones» expulsa a la otra.
 
 ## 6. Primer módulo de negocio
 

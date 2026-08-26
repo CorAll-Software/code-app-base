@@ -10,6 +10,7 @@ DECLARE
     v_enable BOOLEAN;
     v_permissions_ids INTEGER[];
     v_user_cr INTEGER;
+    v_token_cr UUID;
     result json;
 BEGIN
     v_id := (req->>'id')::INTEGER;
@@ -19,6 +20,7 @@ BEGIN
     v_enable := COALESCE((req->>'enable')::BOOLEAN, TRUE);
     v_permissions_ids := ARRAY(SELECT json_array_elements_text(COALESCE(req->'permissions_ids', '[]'::json))::INTEGER);
     v_user_cr := (req->>'user_cr')::INTEGER;
+    v_token_cr := (req->>'token_cr')::UUID;
 
     -- PROTECCIÓN: Los roles de sistema no pueden ser modificados ni eliminados
     IF v_id IS NOT NULL AND v_id > 0 THEN
@@ -30,9 +32,9 @@ BEGIN
     IF v_id IS NULL OR v_id = 0 THEN
         -- Insert
         INSERT INTO core.roles (
-            name, description, status, enable, user_cr
+            name, description, status, enable, user_cr, token_cr
         ) VALUES (
-            v_name, v_description, v_status, v_enable, v_user_cr
+            v_name, v_description, v_status, v_enable, v_user_cr, v_token_cr
         ) RETURNING id INTO v_id;
     ELSE
         -- Update
@@ -42,6 +44,7 @@ BEGIN
             status = v_status,
             enable = v_enable,
             user_up = v_user_cr,
+            token_up = v_token_cr,
             date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE id = v_id;
     END IF;
@@ -53,28 +56,31 @@ BEGIN
 
     IF v_status = FALSE THEN
         -- Forced deactivation on logical delete
-        UPDATE core.role_permissions 
+        UPDATE core.role_permissions
         SET status = FALSE,
             user_up = v_user_cr,
+            token_up = v_token_cr,
             date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE role_id = v_id;
-        
+
     ELSIF (req::jsonb) ? 'permissions_ids' THEN
         -- Explicit sync from form
-        UPDATE core.role_permissions 
+        UPDATE core.role_permissions
         SET status = FALSE,
             user_up = v_user_cr,
+            token_up = v_token_cr,
             date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE role_id = v_id;
 
         IF v_permissions_ids IS NOT NULL AND array_length(v_permissions_ids, 1) > 0 THEN
-            INSERT INTO core.role_permissions (role_id, permission_id, status, user_cr)
-            SELECT v_id, p_id, TRUE, v_user_cr
+            INSERT INTO core.role_permissions (role_id, permission_id, status, user_cr, token_cr)
+            SELECT v_id, p_id, TRUE, v_user_cr, v_token_cr
             FROM unnest(v_permissions_ids) p_id
-            ON CONFLICT (role_id, permission_id) 
-            DO UPDATE SET 
+            ON CONFLICT (role_id, permission_id)
+            DO UPDATE SET
                 status = TRUE,
                 user_up = v_user_cr,
+                token_up = v_token_cr,
                 date_up = EXTRACT(EPOCH FROM NOW())::BIGINT;
         END IF;
     END IF;
@@ -87,8 +93,8 @@ BEGIN
         'status', r.status,
         'enable', r.enable,
         'permissions', ARRAY(
-            SELECT rp.permission_id 
-            FROM core.role_permissions rp 
+            SELECT rp.permission_id
+            FROM core.role_permissions rp
             WHERE rp.role_id = r.id AND rp.status = true
         )
     ) INTO result

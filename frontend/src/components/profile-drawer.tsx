@@ -1,6 +1,9 @@
 import {
+    DesktopOutlined,
     LockOutlined,
+    LogoutOutlined,
     MailOutlined,
+    MobileOutlined,
     PhoneOutlined,
     SaveOutlined,
     UserOutlined,
@@ -10,10 +13,12 @@ import { BRAND } from '@src/core/color';
 import { useAuth } from '@src/providers/auth-provider';
 import { useProfileDrawerStore } from '@src/store/profile-drawer.store';
 import { authService } from '@src/services/auth.service';
+import { sessionsService, type UserSessionInfo } from '@src/services/sessions.service';
 import { FotoUploader } from '@src/modules/equipo/components/FotoUploader';
 import { portalPhotoService } from '@src/services/profile-photo.service';
-import { Button, Divider, Drawer, Form, Input, Tag, Tabs, Typography, notification } from 'antd';
-import { useState } from 'react';
+import { Button, Divider, Drawer, Empty, Form, Input, List, Popconfirm, Skeleton, Tag, Tabs, Typography, notification } from 'antd';
+import { useEffect, useState } from 'react';
+import dayjs from 'dayjs';
 
 const { Text } = Typography;
 
@@ -344,6 +349,134 @@ const ChangePasswordTab = ({ form }: { form: any }) => {
     );
 };
 
+/* ─── Tab: Sesiones activas ───────────────────────────────────── */
+const isMobileDevice = (device?: string | null) => /Android|iOS/i.test(device || '');
+
+const SessionsTab = () => {
+    const [sessions, setSessions] = useState<UserSessionInfo[]>([]);
+    const [loading, setLoading] = useState(true);
+    /** id de la sesión que se está cerrando, o 'others' para el cierre masivo. */
+    const [closing, setClosing] = useState<string | null>(null);
+
+    const load = async () => {
+        setLoading(true);
+        try {
+            setSessions(await sessionsService.list());
+        } catch {
+            setSessions([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { load(); }, []);
+
+    const closeOne = async (id: string) => {
+        setClosing(id);
+        await sessionsService.revoke(id).catch(() => null);
+        setClosing(null);
+        load();
+    };
+
+    const closeOthers = async () => {
+        setClosing('others');
+        await sessionsService.revokeOthers().catch(() => null);
+        setClosing(null);
+        load();
+    };
+
+    if (loading) return <Skeleton active paragraph={{ rows: 4 }} />;
+
+    if (!sessions.length) {
+        return <Empty description="No hay sesiones activas" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+    }
+
+    const others = sessions.filter((s) => !s.current);
+
+    return (
+        <>
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+                Estos son los dispositivos con tu sesión abierta. Si no reconoces alguno,
+                ciérralo y cambia tu contraseña.
+            </Text>
+
+            <List
+                itemLayout="horizontal"
+                dataSource={sessions}
+                renderItem={(session) => (
+                    <List.Item
+                        actions={[
+                            <Popconfirm
+                                key="close"
+                                title="¿Cerrar esta sesión?"
+                                description={
+                                    session.current
+                                        ? 'Es el dispositivo que estás usando: se cerrará tu sesión aquí.'
+                                        : 'Ese dispositivo tendrá que iniciar sesión de nuevo.'
+                                }
+                                okText="Cerrar"
+                                cancelText="Cancelar"
+                                onConfirm={() => closeOne(session.id)}
+                            >
+                                <Button
+                                    danger
+                                    type="text"
+                                    size="small"
+                                    icon={<LogoutOutlined />}
+                                    loading={closing === session.id}
+                                />
+                            </Popconfirm>,
+                        ]}
+                    >
+                        <List.Item.Meta
+                            avatar={
+                                isMobileDevice(session.device)
+                                    ? <MobileOutlined style={{ fontSize: 20, color: BRAND.primary }} />
+                                    : <DesktopOutlined style={{ fontSize: 20, color: BRAND.primary }} />
+                            }
+                            title={
+                                <span style={{ fontSize: 13 }}>
+                                    {session.device || 'Dispositivo desconocido'}
+                                    {session.current && (
+                                        <Tag color="green" style={{ marginLeft: 8, fontSize: 11 }}>
+                                            Este dispositivo
+                                        </Tag>
+                                    )}
+                                </span>
+                            }
+                            description={
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {session.ip_address && session.ip_address !== 'unknown'
+                                        ? `IP ${session.ip_address} · `
+                                        : ''}
+                                    Activa {dayjs.unix(session.last_used_at ?? session.date_cr).fromNow()}
+                                </Text>
+                            }
+                        />
+                    </List.Item>
+                )}
+            />
+
+            {others.length > 0 && (
+                <>
+                    <Divider style={{ margin: '12px 0' }} />
+                    <Popconfirm
+                        title="¿Cerrar las demás sesiones?"
+                        description={`Se cerrarán ${others.length} sesión${others.length > 1 ? 'es' : ''} en otros dispositivos.`}
+                        okText="Cerrar todas"
+                        cancelText="Cancelar"
+                        onConfirm={closeOthers}
+                    >
+                        <Button danger block icon={<LogoutOutlined />} loading={closing === 'others'}>
+                            Cerrar las demás sesiones
+                        </Button>
+                    </Popconfirm>
+                </>
+            )}
+        </>
+    );
+};
+
 /* ─── Componente principal ────────────────────────────────────── */
 export const ProfileDrawer = () => {
     const { open, closeDrawer } = useProfileDrawerStore();
@@ -379,6 +512,18 @@ export const ProfileDrawer = () => {
             ),
             children: (
                 <ChangePasswordTab form={formPassword} />
+            ),
+        },
+        {
+            key: '3',
+            label: (
+                <span>
+                    <DesktopOutlined style={{ marginRight: 6 }} />
+                    Sesiones
+                </span>
+            ),
+            children: (
+                <SessionsTab />
             ),
         },
     ];

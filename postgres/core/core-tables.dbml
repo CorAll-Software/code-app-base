@@ -24,6 +24,15 @@ Enum core.enum_module {
   ADMIN [note: 'Administración / configuración general']
 }
 
+// Motivo por el que una sesión dejó de estar activa.
+Enum core.enum_session_revoke_reason {
+  LOGOUT          [note: 'El usuario cerró sesión en ese dispositivo']
+  MANUAL          [note: 'Cerrada por el usuario desde "Sesiones"']
+  PASSWORD_CHANGE [note: 'Cambio/restablecimiento de contraseña']
+  REUSE_DETECTED  [note: 'Refresh token ya rotado (posible robo)']
+  ADMIN           [note: 'Cierre forzado por un administrador']
+}
+
 // ── Tablas ───────────────────────────────────────────────────────────────────
 
 Table core.permissions {
@@ -33,8 +42,10 @@ Table core.permissions {
   description text
   status      boolean      [default: true]
   user_cr     integer
+  token_cr    uuid
   date_cr     bigint       [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
   user_up     integer
+  token_up    uuid
   date_up     bigint
   Note: 'Catálogo de permisos (slug). Sincronizado con core/permissions.constants.ts'
 }
@@ -53,8 +64,10 @@ Table core.users {
   enable        boolean      [default: true, note: 'Activo / Inactivo']
   status        boolean      [default: true, note: 'Visible (soft delete) / Hidden']
   user_cr       integer
+  token_cr      uuid
   date_cr       bigint       [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
   user_up       integer
+  token_up      uuid
   date_up       bigint
 }
 
@@ -66,8 +79,10 @@ Table core.roles {
   enable      boolean          [default: true]
   status      boolean          [default: true]
   user_cr     integer
+  token_cr    uuid
   date_cr     bigint           [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
   user_up     integer
+  token_up    uuid
   date_up     bigint
 }
 
@@ -77,8 +92,10 @@ Table core.role_permissions {
   permission_id integer [not null, ref: > core.permissions.id]
   status        boolean [default: true]
   user_cr       integer
+  token_cr      uuid
   date_cr       bigint  [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
   user_up       integer
+  token_up      uuid
   date_up       bigint
 
   indexes {
@@ -87,14 +104,16 @@ Table core.role_permissions {
 }
 
 Table core.user_roles {
-  id      serial  [pk]
-  user_id integer [not null, ref: > core.users.id]
-  role_id integer [not null, ref: > core.roles.id]
-  status  boolean [default: true]
-  user_cr integer
-  date_cr bigint  [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
-  user_up integer
-  date_up bigint
+  id       serial  [pk]
+  user_id  integer [not null, ref: > core.users.id]
+  role_id  integer [not null, ref: > core.roles.id]
+  status   boolean [default: true]
+  user_cr  integer
+  token_cr uuid
+  date_cr  bigint  [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up  integer
+  token_up uuid
+  date_up  bigint
 
   indexes {
     (user_id, role_id) [unique]
@@ -113,14 +132,16 @@ Table core.audit_log {
   ip_address varchar(45)
   status     boolean                [default: true]
   user_cr    integer
+  token_cr   uuid
   date_cr    bigint                 [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
   user_up    integer
+  token_up   uuid
   date_up    bigint
   Note: 'Bitácora de auditoría inmutable (RNF-04, RNF-05).'
 }
 
 Table core.notifications {
-  id         uuid         [pk, default: `gen_random_uuid()`]
+  id         uuid         [pk, default: `uuidv7()`]
   user_id    integer      [not null, ref: > core.users.id]
   title      varchar(150) [not null]
   message    text         [not null]
@@ -155,6 +176,28 @@ Table core.password_recovery {
   Note: 'Códigos de recuperación de contraseña de usuarios internos (intranet).'
 }
 
+Table core.user_sessions {
+  id                 uuid         [pk, default: `uuidv7()`]
+  user_id            integer      [not null, ref: > core.users.id]
+  refresh_hash       "char(64)"   [not null, note: 'SHA-256 del refresh vigente']
+  ip_address         varchar(45)
+  user_agent         varchar(300)
+  device             varchar(120) [note: 'Etiqueta legible, p.ej. Chrome · Windows']
+  date_cr            bigint       [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  last_used_at       bigint
+  expires_at         bigint       [not null]
+  revoked_at         bigint
+  revoked_reason     core.enum_session_revoke_reason
+  revoked_by_user    integer      [note: 'Quién la cerró (usuario o admin)']
+  revoked_by_session uuid         [note: 'Desde qué sesión se cerró']
+
+  indexes {
+    user_id
+    refresh_hash
+  }
+  Note: 'Sesiones abiertas (refresh token rotativo). El id es el sid del access token y el token_cr/token_up del resto de tablas. Tabla de evento: sin bloque de auditoría.'
+}
+
 TableGroup core {
   core.permissions
   core.users
@@ -164,4 +207,5 @@ TableGroup core {
   core.audit_log
   core.notifications
   core.password_recovery
+  core.user_sessions
 }

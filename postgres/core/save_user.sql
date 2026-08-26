@@ -15,6 +15,7 @@ DECLARE
     v_cargo         VARCHAR;
     v_rol_sistema   JSON;
     v_user_cr       INTEGER;
+    v_token_cr      UUID;
     result          json;
 BEGIN
     v_id            := (req->>'id')::INTEGER;
@@ -29,6 +30,7 @@ BEGIN
     v_cargo         := req->>'cargo';
     v_rol_sistema   := req->'rol_sistema';
     v_user_cr       := (req->>'user_cr')::INTEGER;
+    v_token_cr      := (req->>'token_cr')::UUID;
 
     -- Validaciones de unicidad
     IF EXISTS (
@@ -48,10 +50,10 @@ BEGIN
     IF v_id IS NULL OR v_id = 0 THEN
         INSERT INTO core.users (
             first_name, last_name, email, password_hash, phone,
-            enable, status, dni, cargo, user_cr
+            enable, status, dni, cargo, user_cr, token_cr
         ) VALUES (
             v_first_name, v_last_name, v_email, v_password_hash, v_phone,
-            v_enable, v_status, v_dni, v_cargo, v_user_cr
+            v_enable, v_status, v_dni, v_cargo, v_user_cr, v_token_cr
         ) RETURNING id INTO v_id;
     ELSE
         UPDATE core.users SET
@@ -65,6 +67,7 @@ BEGIN
             dni           = COALESCE(v_dni, dni),
             cargo         = COALESCE(v_cargo, cargo),
             user_up       = v_user_cr,
+            token_up      = v_token_cr,
             date_up       = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE id = v_id;
     END IF;
@@ -72,18 +75,22 @@ BEGIN
     -- Manejar roles
     IF v_rol_sistema IS NOT NULL AND json_typeof(v_rol_sistema) = 'array' THEN
         UPDATE core.user_roles
-        SET status = FALSE, user_up = v_user_cr, date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
+        SET status = FALSE,
+            user_up = v_user_cr,
+            token_up = v_token_cr,
+            date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE user_id = v_id
           AND role_id NOT IN (
               SELECT DISTINCT (json_array_elements_text(v_rol_sistema))::INTEGER
           );
 
-        INSERT INTO core.user_roles (user_id, role_id, status, user_cr)
-        SELECT DISTINCT v_id, elem.id::INTEGER, TRUE, v_user_cr
+        INSERT INTO core.user_roles (user_id, role_id, status, user_cr, token_cr)
+        SELECT DISTINCT v_id, elem.id::INTEGER, TRUE, v_user_cr, v_token_cr
         FROM (SELECT (json_array_elements_text(v_rol_sistema))::INTEGER AS id) elem
         ON CONFLICT (user_id, role_id) DO UPDATE
             SET status = TRUE,
                 user_up = EXCLUDED.user_cr,
+                token_up = EXCLUDED.token_cr,
                 date_up = EXTRACT(EPOCH FROM NOW())::BIGINT;
     END IF;
 

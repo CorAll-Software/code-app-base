@@ -5,7 +5,7 @@
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS core.notifications (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id         UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id    INTEGER NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     title      VARCHAR(150) NOT NULL,
     message    TEXT NOT NULL,

@@ -1,7 +1,8 @@
 import { execProcedure } from '@core/db/connection';
-import { validateToken } from '@core/jwt';
 import { logAudit, extractClientIp } from '@core/audit.helper';
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
+import { authPlugin } from '@core/auth.guard';
+import { PERMISSIONS } from '@core/permissions.constants';
 
 const path = '/roles';
 
@@ -21,60 +22,56 @@ function validateRoleFieldLengths(body: Record<string, any>): string | null {
 }
 
 export const RolesApi = new Elysia()
-    .get(`${path}`, async ({ status, headers }) => {
-        const user = await validateToken(headers)
-        if (user.error) { return status(401, { message: user.error }) }
-
-        console.log(`[GET] ${path} - User: ${user.id}`);
+    .use(authPlugin)
+    .get(`${path}`, async ({ status }) => {
         const result = await execProcedure('core.get_roles', [{}]);
         if (result.error) {
             return status(400, { message: result.error });
         }
         return result.result;
     }, {
-        headers: t.Object({ authorization: t.String() })
+        // Catálogo de consulta: además de la pantalla de Roles lo necesitan el
+        // formulario de usuarios (asignar roles) y el visor de auditoría.
+        requirePermission: [
+            PERMISSIONS.ROLES.VIEW,
+            PERMISSIONS.USUARIOS.VIEW,
+            PERMISSIONS.AUDITORIA.VIEW,
+        ]
     })
-    .post(`${path}`, async ({ body, status, headers }) => {
-        const user = await validateToken(headers)
-        if (user.error) { return status(401, { message: user.error }) }
-
-        const bodyData = (body as any).params || body;
+    .post(`${path}`, async ({ body, status, headers, user }) => {
+        const bodyData = body as any;
         const lengthError = validateRoleFieldLengths(bodyData);
         if (lengthError) {
             return status(400, { message: lengthError });
         }
-        const data = { ...bodyData, user_cr: (user as any).id };
+        const data = { ...bodyData, user_cr: (user as any).id, token_cr: (user as any).sid };
 
-        console.log(`[POST] ${path} - User: ${user.id}`, data);
         const result = await execProcedure('core.save_role', [data]);
         if (result.error) {
             return status(400, { message: result.error });
         }
-        logAudit({ 
-            userId: user.id, 
-            module: 'ADMIN', 
-            tableName: 'roles', 
-            recordId: result.result?.id, 
-            action: 'INSERT', 
-            newData: { ...data, permissions: data.permissions_ids }, 
-            ipAddress: extractClientIp(headers) 
+        logAudit({
+            userId: (user as any).id,
+            module: 'ADMIN',
+            tableName: 'roles',
+            recordId: result.result?.id,
+            action: 'INSERT',
+            newData: { ...data, permissions: data.permissions_ids },
+            ipAddress: extractClientIp(headers),
+            sessionId: (user as any).sid
         });
         return result.result;
     }, {
-        headers: t.Object({ authorization: t.String() })
+        requirePermission: PERMISSIONS.ROLES.MANAGE
     })
-    .put(`${path}`, async ({ body, status, headers }) => {
-        const user = await validateToken(headers)
-        if (user.error) { return status(401, { message: user.error }) }
-
-        const bodyData = (body as any).params || body;
+    .put(`${path}`, async ({ body, status, headers, user }) => {
+        const bodyData = body as any;
         const lengthError = validateRoleFieldLengths(bodyData);
         if (lengthError) {
             return status(400, { message: lengthError });
         }
-        const data = { ...bodyData, user_cr: (user as any).id };
+        const data = { ...bodyData, user_cr: (user as any).id, token_cr: (user as any).sid };
 
-        console.log(`[PUT] ${path} - User: ${user.id}`, data);
         const result = await execProcedure('core.save_role', [data]);
         if (result.error) {
             return status(400, { message: result.error });
@@ -87,15 +84,16 @@ export const RolesApi = new Elysia()
         };
 
         logAudit({
-            userId: user.id, 
-            module: 'ADMIN', 
-            tableName: 'roles', 
-            recordId: data.id, 
+            userId: (user as any).id,
+            module: 'ADMIN',
+            tableName: 'roles',
+            recordId: data.id,
             action: data.status === false ? 'DELETE' : 'UPDATE',
             newData: auditNewData,
-            ipAddress: extractClientIp(headers) 
+            ipAddress: extractClientIp(headers),
+            sessionId: (user as any).sid
         });
         return result.result;
     }, {
-        headers: t.Object({ authorization: t.String() })
+        requirePermission: PERMISSIONS.ROLES.MANAGE
     });

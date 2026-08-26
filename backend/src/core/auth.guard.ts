@@ -1,12 +1,32 @@
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { validateToken } from '@core/jwt';
 import { userStore } from '@core/store';
 import { PermisoSlug } from '@core/permisos.type';
 
+/**
+ * Plugin de autenticación y autorización.
+ *
+ * Toda instancia que haga `.use(authPlugin)` queda protegida: el
+ * `onBeforeHandle` de abajo exige un token válido en TODAS sus rutas, declaren
+ * o no `requirePermission`. Es deliberadamente "fail-closed" — olvidar la macro
+ * en una ruta la dejaba completamente pública, que es un error fácil de cometer
+ * y difícil de notar.
+ *
+ * El scope `scoped` hace que la protección alcance a la instancia que usa el
+ * plugin (y al grupo donde se monta) sin escaparse al resto de la app: las
+ * rutas públicas de `auth.api.ts` (login, forgot-password) siguen abiertas
+ * porque viven fuera del grupo que usa este plugin.
+ */
 export const authPlugin = new Elysia({ name: 'auth-plugin' })
     .derive({ as: 'global' }, async ({ headers, cookie }) => {
         const user = await validateToken(headers, cookie);
         return { user };
+    })
+    .onBeforeHandle({ as: 'scoped' }, ({ user, status }) => {
+        // Identidad base: token presente, firmado y con la sesión aún activa.
+        if ((user as any)?.error) {
+            return status(401, { message: (user as any).error });
+        }
     })
     .macro({
         // `null` = solo exige token válido (sin permiso específico).
@@ -25,10 +45,10 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
                     if (user?.isAdmin) return;
 
                     // 4. Verificación Atómica de Permisos contra Redis
-                    const permissions = Array.isArray(value) 
-                        ? value 
+                    const permissions = Array.isArray(value)
+                        ? value
                         : [value];
-                    
+
                     let hasAccess = false;
                     for (const permissionString of permissions as string[]) {
                         if (await userStore.hasPermission(user.id, permissionString as any)) {
@@ -45,6 +65,3 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
             }
         }
     });
-
-
-

@@ -24,8 +24,14 @@ llama `execProcedure()` y adapta la respuesta. El frontend consume servicios tip
 Detalle completo en [`../postgres/README.md`](../postgres/README.md). Lo esencial:
 
 - Un **esquema por módulo** (`CREATE SCHEMA ventas;`), `core` es la base.
-- Toda tabla termina con: `status BOOLEAN DEFAULT TRUE` (soft-delete), `user_cr`,
-  `date_cr` (epoch BIGINT), `user_up`, `date_up` — en ese orden.
+- Toda tabla **de entidad** termina con: `status BOOLEAN DEFAULT TRUE`
+  (soft-delete), `user_cr`, `token_cr`, `date_cr` (epoch BIGINT), `user_up`,
+  `token_up`, `date_up` — en ese orden. `token_cr`/`token_up` son `UUID` y
+  guardan la **sesión** (`core.user_sessions.id`, el `sid` del token) desde la
+  que se creó o modificó la fila: quién + desde qué dispositivo + cuándo.
+  Las **tablas de evento** (`notifications`, `password_recovery`,
+  `user_sessions`) no lo llevan: nadie las edita desde una pantalla, así que
+  esas columnas serían siempre redundantes. Detalle en `postgres/README.md`.
 - Fechas en **epoch BIGINT**, montos `NUMERIC(12,2)`, ENUMs idempotentes prefijados
   por esquema (`ventas.enum_estado`).
 - Funciones con firma única `f(req json) RETURNS json`:
@@ -62,6 +68,7 @@ export const ClientesApi = new Elysia()
     .post(path, async ({ body, set, user }) => {
         const data = body as any;
         data.user_cr = (user as any).id;      // SIEMPRE: quién crea/edita
+        data.token_cr = (user as any).sid;    // SIEMPRE: desde qué sesión
         const r = await execProcedure('ventas.save_cliente', [data]);
         if (r.error) { set.status = 400; return { message: r.error }; }
         return r.result;
@@ -74,22 +81,64 @@ export const ClientesApi = new Elysia()
 Reglas:
 
 - **Autorización declarativa**: `requirePermission: <slug>` (macro de
-  `core/auth.guard.ts`). Acepta un slug o array (basta uno). El rol
-  `Administrador` (o id 1) pasa todo. Endpoint sin `requirePermission` = solo
-  requiere token válido.
+  `core/auth.guard.ts`). Acepta un slug o **array** (basta con tener uno: útil
+  para catálogos que consultan varias pantallas, como `GET /roles`). El rol
+  `Administrador` (o id 1) pasa todo.
+  `authPlugin` es **fail-closed**: cualquier ruta de una instancia que lo use
+  exige token válido aunque olvides la macro (`onBeforeHandle` con scope
+  `scoped`, que no alcanza a las rutas públicas montadas fuera del grupo).
+  Aun así, **declara siempre el nivel de acceso**: `requirePermission: null`
+  para "basta con estar autenticado" (perfil, notificaciones, sesiones,
+  `/users/combo`) y el slug o array cuando haga falta un permiso.
+- **Nunca validar el token a mano** en un módulo (`validateToken(headers)` en el
+  handler): salta el guard y la ruta queda sin control de permisos. Usar siempre
+  `.use(authPlugin)` + `requirePermission`, y leer la identidad de `user`.
 - **Errores**: los `RAISE EXCEPTION` de BD llegan en `r.error`; responder
   `400 { message }`. El handler global de `index.ts` cubre 404/500/validación.
 - **Convención REST**: `GET /x` lista, `GET /x/:id` detalle, `POST /x` crea,
   `PUT /x` actualiza (id en el body), `DELETE /x/:id` soft-delete.
   UPSERT: el mismo `save_*` maneja insert/update según `id`.
 - **Auditoría**: en operaciones críticas llamar `logAudit(...)` de
-  `core/audit.helper.ts` (fire-and-forget, no bloquea la respuesta).
+  `core/audit.helper.ts` (fire-and-forget, no bloquea la respuesta), pasando
+  `sessionId: (user as any).sid` para que la bitácora guarde la sesión de origen.
 - **Archivos**: subir a S3 con `core/s3.ts` (`buildKeyObject` + `uploadToS3Private`),
   guardar solo la key en BD y devolver URLs firmadas (`getS3ObjectUrl`).
   Imágenes: convertir a WebP con `core/image.ts` cuando aplique.
 - **Registro**: importar y `.use()` el API en `src/router.ts`.
 - Alias de imports: `@core/*`, `@modules/*`, `@/*` (definidos en `tsconfig.json`).
 - Config SOLO vía `src/config.ts` (nunca `process.env` suelto en módulos).
+
+### Sesiones y refresh token
+
+El login entrega **dos** credenciales y abre una fila en `core.user_sessions`:
+
+| Credencial | Vida | Dónde vive | Para qué |
+|---|---|---|---|
+| `token` (access, JWT) | `JWT_ACCESS_EXPIRE_IN` (15 min) | `localStorage` + cookie `session_token` | Cabecera `Authorization` de cada request |
+| `refreshToken` (opaco `<sid>.<secreto>`) | `JWT_REFRESH_EXPIRE_IN` (7 días) | `localStorage` + cookie `refresh_token` | Canjearlo en `POST /auth/refresh` |
+
+```
+POST /auth/login    → { user, token, refreshToken, expiresIn, refreshExpiresIn }
+POST /auth/refresh  → rota el refresh y emite un token nuevo (no exige access válido)
+POST /auth/logout   → revoca la sesión actual
+POST /auth/verify-token → revalida y devuelve el usuario fresco (NO emite tokens)
+GET/DELETE /auth/sessions[/:id] → listar y cerrar sesiones del propio usuario
+```
+
+- El JWT lleva `sid` = `core.user_sessions.id`. `core/auth.guard.ts` lo expone en
+  `user.sid`: es el `token_cr`/`token_up` que debe viajar a toda función `save_*`.
+- `core/session.ts` orquesta BD + Redis. **Redis es solo caché**: si no tiene la
+  sesión se consulta `core.get_user_session`, así una revocación aplica al
+  instante y una caída de Redis no cierra sesiones.
+- El refresh es **rotativo**: cada canje invalida el anterior. Presentar uno ya
+  rotado revoca la sesión completa (robo de token).
+- El frontend no llama a `/auth/refresh` a mano: `core/http.ts` renueva y
+  reintenta ante un 401, con *single-flight* para que N peticiones en paralelo
+  compartan una sola renovación, y `auth-provider.tsx` renueva de forma proactiva
+  un minuto antes del vencimiento.
+- Cambiar la contraseña cierra el resto de dispositivos (`PASSWORD_CHANGE`);
+  restablecerla por correo los cierra **todos**. Desactivar o eliminar un usuario
+  revoca sus sesiones, no solo su socket.
 
 ### Permisos (RBAC)
 
@@ -213,9 +262,14 @@ export const clientesService = {
 ## 5. Tiempo real (WebSocket)
 
 - Canal autenticado en `/ws` (`modules/core/auth.ws.ts` + `frontend/src/core/ws.ts`).
-  El backend mantiene el mapa de sesiones `wsSesssion` y expone helpers:
-  `notifyUserClose(userId)` (cierre remoto de sesión), `notifyUserReload(userId)`
-  (recargar sesión/permisos) y `notifyUserJson(userId, data)` (mensaje arbitrario).
+  El backend mantiene el mapa de sockets `wsSessions` (indexado por `wsid`, cada
+  entrada recuerda el `sid` de la sesión) y expone helpers:
+  `notifyUserClose(userId)` (cierra todos los sockets del usuario),
+  `notifySessionClose(sessionId)` (cierra solo un dispositivo),
+  `notifyUserReload(userId)` (recargar sesión/permisos) y
+  `notifyUserJson(userId, data)` (mensaje arbitrario).
+  Cerrar el socket NO invalida el token: para eso hay que revocar la sesión con
+  los helpers de `core/session.ts`.
 - Para eventos de módulo: emitir desde el backend con `notifyUserJson` y manejar
   el `type` del mensaje en el handler WS de `frontend/src/App.tsx`.
 

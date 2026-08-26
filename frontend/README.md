@@ -28,14 +28,16 @@ src/
 ├── router.config.tsx       # Rutas privadas (data router + lazy + PermissionRoute)
 ├── public-router.config.tsx# Rutas públicas (login, recuperar contraseña)
 ├── menu.config.tsx         # Sidebar (visibilidad por slug de permiso)
-├── core/                   # http (GET/POST tipados), ws, permisos, colores,
-│                           # hooks, parse, tipos y utilidades transversales
+├── core/                   # http (GET/POST tipados + refresh transparente), ws,
+│                           # permisos, colores, hooks, parse, tipos y utilidades
 ├── layouts/                # login, home, perfil, 404, permission-route, etc.
-├── providers/              # AuthProvider (sesión/JWT), message provider
+├── providers/              # AuthProvider (sesión, renovación proactiva del token),
+│                           # message provider
 ├── components/             # Reutilizables: DataTable, StandardPageLayout,
-│                           # StandardModalForm, StandardFilters, avatars, mapas
-├── store/                  # Zustand: notificaciones, drawer de perfil, proyectos
-├── services/               # Servicios transversales (auth, foto de perfil)
+│                           # StandardModalForm, StandardFilters, avatares,
+│                           # profile-drawer (Perfil / Contraseña / Sesiones)
+├── store/                  # Zustand: notificaciones, drawer de perfil
+├── services/               # Servicios transversales (auth, sesiones, foto de perfil)
 └── modules/
     ├── equipo/             # Gestión de usuarios
     └── configuracion/      # Roles y permisos + auditoría

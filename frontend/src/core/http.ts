@@ -24,6 +24,9 @@ interface OptionsExtraRequest {
 
 const eventLogout = new Event("logout");
 
+/** Se emite tras renovar la sesión, con el usuario fresco que devuelve el backend. */
+export const SESSION_REFRESHED_EVENT = "session-refreshed";
+
 export const getToken = () => {
   const token = localStorage.getItem(LOCAL_STORAGE_KEYS.TOKEN) || "";
   if (!token) {
@@ -32,19 +35,81 @@ export const getToken = () => {
   return token;
 };
 
+export const getRefreshToken = () =>
+  localStorage.getItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN) || "";
+
+export const storeSession = (token: string, refreshToken?: string) => {
+  localStorage.setItem(LOCAL_STORAGE_KEYS.TOKEN, token);
+  if (refreshToken) {
+    localStorage.setItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+  }
+};
+
+export const clearSession = () => {
+  localStorage.removeItem(LOCAL_STORAGE_KEYS.TOKEN);
+  localStorage.removeItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN);
+};
+
 export const handle401 = (res: Response) => {
   if (res.status === 401) {
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.TOKEN);
+    clearSession();
     window.dispatchEvent(eventLogout);
   }
 };
 
-export const GET = <T>(url: string, options?: OptionsExtraRequest) => {
-  const params = options?.params || {};
-  const token = getToken();
+/*
+  Renovación transparente del access token.
 
+  El access token dura minutos; cuando vence, el backend responde 401 y aquí se
+  canjea el refresh token por uno nuevo y se reintenta la petición UNA vez. El
+  usuario no ve nada. `refreshInFlight` garantiza que N peticiones en paralelo
+  compartan una sola renovación: el refresh es rotativo y dos canjes simultáneos
+  del mismo token dispararían la detección de reuso en el backend.
+*/
+let refreshInFlight: Promise<boolean> | null = null;
+
+const doRefresh = async (): Promise<boolean> => {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(api + "auth/refresh", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!res.ok) return false;
+
+    const json = await res.json();
+    if (!json?.token) return false;
+
+    storeSession(json.token, json.refreshToken);
+    window.dispatchEvent(new CustomEvent(SESSION_REFRESHED_EVENT, { detail: json }));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const refreshSession = (): Promise<boolean> => {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+};
+
+/* ─── Núcleo de las peticiones ──────────────────────────────────────────────
+   Todos los verbos comparten este helper: inyecta el token, renueva la sesión
+   ante un 401, muestra los toasts y normaliza los errores. */
+
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+const buildUrl = (url: string, params?: any) => {
   const uri = new URL(api + url);
-
   if (params) {
     Object.keys(params)
       .filter((key) => params[key] !== undefined && params[key] !== null)
@@ -57,296 +122,99 @@ export const GET = <T>(url: string, options?: OptionsExtraRequest) => {
         }
       });
   }
-
-  return new Promise<T>((resolve, reject) => {
-    return fetch(uri, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          // Si no llega un mensaje del servidor, usar el mensaje genérico
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json);
-        }
-        if (options?.msgSuccess && !options?.hideNotification) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json);
-      })
-      .catch((err) => {
-        if (!options?.hideNotification) {
-          window.messageApi?.error(err?.message || err);
-        }
-        return reject(err);
-      });
-  });
+  return uri;
 };
 
-export const POST = <T>(url: string, options: OptionsExtraRequest) => {
-  const token = getToken();
-  return new Promise<T>((resolve, reject) => {
-    return fetch(api + url, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify(options?.params || {}),
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          // Si no llega un mensaje del servidor, usar el mensaje genérico
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json as T);
-        }
-        if (options?.msgSuccess && !options?.hideNotification && window.messageApi) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json as T);
-      })
-      .catch((err) => {
-        if (!options?.hideNotification) {
-          window.messageApi?.error(err?.message || err);
-        }
-        return reject(err as T);
-      });
-  });
-};
+interface RequestConfig {
+  method: Method;
+  url: string;
+  options?: OptionsExtraRequest;
+  /** Los params van en la query en vez del body (GET y DELETE). */
+  paramsInQuery?: boolean;
+  /** El body es un FormData: el navegador pone el Content-Type con su boundary. */
+  formData?: boolean;
+}
 
-export const PUT = <T>(url: string, options: OptionsExtraRequest) => {
-  const token = getToken();
-  return new Promise<T>((resolve, reject) => {
-    return fetch(api + url, {
-      method: "PUT",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify(options?.params || {}),
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          // Si no llega un mensaje del servidor, usar el mensaje genérico
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json as T);
-        }
-        if (options?.msgSuccess && !options?.hideNotification) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json as T);
-      })
-      .catch((err) => {
-        window.messageApi?.error(err?.message || err);
-        return reject(err);
-      });
-  });
-};
+const request = async <T>(config: RequestConfig): Promise<T> => {
+  const { method, url, options, paramsInQuery, formData } = config;
 
-export const PATCH = <T>(url: string, options: OptionsExtraRequest) => {
-  const token = getToken();
-  return new Promise<T>((resolve, reject) => {
-    return fetch(api + url, {
-      method: "PATCH",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify(options?.params || {}),
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json as T);
-        }
-        if (options?.msgSuccess && !options?.hideNotification) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json as T);
-      })
-      .catch((err) => {
-        window.messageApi?.error(err?.message || err);
-        return reject(err);
-      });
-  });
-};
+  const send = (token: string) => {
+    const headers: Record<string, string> = {
+      Authorization: "Bearer " + token,
+      ...(options?.headers || {}),
+    };
+    if (!formData && !paramsInQuery) headers["Content-Type"] = "application/json";
 
-export const DELETE = (url: string, options: OptionsExtraRequest) => {
-  const token = getToken();
-  const uri = new URL(api + url);
-  if (options?.params) {
-    Object.keys(options.params)
-      .filter(
-        (key) =>
-          options.params[key] !== undefined && options.params[key] !== null,
-      )
-      .forEach((key) => uri.searchParams.append(key, options.params[key]));
+    return fetch(paramsInQuery ? buildUrl(url, options?.params) : api + url, {
+      method,
+      credentials: "include",
+      headers,
+      body: paramsInQuery
+        ? undefined
+        : formData
+          ? options?.params
+          : JSON.stringify(options?.params || {}),
+    });
+  };
+
+  const notifyError = (message: string) => {
+    if (!options?.hideNotification) window.messageApi?.error(message);
+  };
+
+  try {
+    let res = await send(getToken());
+
+    // Access token vencido: renovar y reintentar una sola vez.
+    if (res.status === 401 && (await refreshSession())) {
+      res = await send(localStorage.getItem(LOCAL_STORAGE_KEYS.TOKEN) || "");
+    }
+
+    handle401(res);
+
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : {};
+
+    if (!res.ok) {
+      // Si no llega un mensaje del servidor, usar el mensaje genérico
+      const errorMessage =
+        json.message ||
+        json.error ||
+        json.errorMessage ||
+        options?.msgError ||
+        "Error en la solicitud";
+      notifyError(errorMessage);
+      return Promise.reject(json as T);
+    }
+
+    if (options?.msgSuccess && !options?.hideNotification) {
+      window.messageApi?.success(options.msgSuccess);
+    }
+    return json as T;
+  } catch (err: any) {
+    // Errores de red o de parseo (los del servidor ya se rechazaron arriba).
+    if (err && (err.message || err.error || err.errorMessage)) return Promise.reject(err);
+    notifyError(err?.message || String(err));
+    return Promise.reject(err);
   }
-  return new Promise((resolve, reject) => {
-    return fetch(uri, {
-      method: "DELETE",
-      credentials: "include",
-      headers: {
-        // 'Content-Type': 'application/json',
-        Authorization: "Bearer " + token,
-      },
-      // body: JSON.stringify(options?.params || {})
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          // Si no llega un mensaje del servidor, usar el mensaje genérico
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json);
-        }
-        if (options?.msgSuccess && !options?.hideNotification) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json);
-      })
-      .catch((err) => {
-        window.messageApi?.error(err?.message || err);
-        return reject(err);
-      });
-  });
 };
 
-export const POSTFormData = <T>(url: string, options: OptionsExtraRequest) => {
-  const token = getToken();
-  return new Promise<T>((resolve, reject) => {
-    return fetch(api + url, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-      body: options.params,
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          // Si no llega un mensaje del servidor, usar el mensaje genérico
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json);
-        }
-        if (options?.msgSuccess && !options?.hideNotification) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json);
-      })
-      .catch((err) => {
-        window.messageApi?.error(err?.message || err);
-        return reject(err);
-      });
-  });
-};
+export const GET = <T>(url: string, options?: OptionsExtraRequest) =>
+  request<T>({ method: "GET", url, options, paramsInQuery: true });
 
-export const PUTFormData = <T>(url: string, options: OptionsExtraRequest) => {
-  const token = getToken();
-  return new Promise<T>((resolve, reject) => {
-    return fetch(api + url, {
-      method: "PUT",
-      credentials: "include",
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-      body: options.params,
-    })
-      .then(async (res) => {
-        handle401(res);
-        const text = await res.text();
-        const json = text ? JSON.parse(text) : {};
-        if (!res.ok) {
-          const errorMessage =
-            json.message ||
-            json.error ||
-            json.errorMessage ||
-            options?.msgError ||
-            "Error en la solicitud";
-          if (!options?.hideNotification) {
-            window.messageApi?.error(errorMessage);
-          }
-          return reject(json);
-        }
-        if (options?.msgSuccess && !options?.hideNotification) {
-          window.messageApi?.success(options.msgSuccess);
-        }
-        return resolve(json);
-      })
-      .catch((err) => {
-        window.messageApi?.error(err?.message || err);
-        return reject(err);
-      });
-  });
-};
+export const POST = <T>(url: string, options: OptionsExtraRequest) =>
+  request<T>({ method: "POST", url, options });
+
+export const PUT = <T>(url: string, options: OptionsExtraRequest) =>
+  request<T>({ method: "PUT", url, options });
+
+export const PATCH = <T>(url: string, options: OptionsExtraRequest) =>
+  request<T>({ method: "PATCH", url, options });
+
+export const DELETE = (url: string, options: OptionsExtraRequest) =>
+  request<unknown>({ method: "DELETE", url, options, paramsInQuery: true });
+
+export const POSTFormData = <T>(url: string, options: OptionsExtraRequest) =>
+  request<T>({ method: "POST", url, options, formData: true });
+
+export const PUTFormData = <T>(url: string, options: OptionsExtraRequest) =>
+  request<T>({ method: "PUT", url, options, formData: true });

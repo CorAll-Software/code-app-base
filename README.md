@@ -55,7 +55,10 @@ app-base/
 
 ## Qué incluye el núcleo
 
-- **Login** con JWT (+ WebSocket autenticado para sesión en vivo y notificaciones).
+- **Login** con JWT de vida corta + **refresh token rotativo** con detección de
+  reuso (+ WebSocket autenticado para sesión en vivo y notificaciones).
+- **Sesiones activas**: el usuario ve sus dispositivos conectados desde su perfil
+  y puede cerrarlos uno a uno o todos menos el actual (`core.user_sessions`).
 - **Recuperación de contraseña** por correo (código de 6 dígitos).
 - **Gestión de usuarios** (CRUD, foto de perfil vía S3, activar/desactivar, roles).
 - **Roles y permisos**: árbol de permisos autogenerado desde los slugs, cache RBAC en Redis.
@@ -66,7 +69,7 @@ app-base/
 
 ## Cómo levantar el proyecto
 
-Requiere [Bun](https://bun.sh), PostgreSQL 15+ y Redis (o Valkey).
+Requiere [Bun](https://bun.sh), PostgreSQL 18+ y Redis (o Valkey).
 
 ### 1. Base de datos
 

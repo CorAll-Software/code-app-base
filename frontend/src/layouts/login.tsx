@@ -4,7 +4,7 @@ import { useFeedback } from '@src/providers/message.provider';
 import { Button, Col, Form, Input, Row } from 'antd';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
+import { storeSession } from '@src/core/http';
 import { CAPTCHA_FAILED_MSG, withCaptcha } from '@core/captcha';
 import { CapCaptcha, type CapCaptchaHandle } from '@components/CapCaptcha';
 
@@ -51,7 +51,7 @@ export const Login = () => {
                     if (json.message) {
                         message.error(json.message)
                     } else if (json.token) {
-                        localStorage.setItem(LOCAL_STORAGE_KEYS.TOKEN, json.token)
+                        storeSession(json.token, json.refreshToken)
                         auth.login(json.user, json.expiresIn)
                     }
                 }

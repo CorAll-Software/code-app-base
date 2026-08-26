@@ -11,7 +11,7 @@ la misma estructura.
 ```prompt
 Vas a crear/afinar el esquema de base de datos `{{ESQUEMA}}` (módulo {{MODULO}})
 de este proyecto, siguiendo EXACTAMENTE las convenciones existentes del esquema
-`core`. Es trabajo SOLO de BASE DE DATOS (PostgreSQL 15+): DDL, ENUMs y
+`core`. Es trabajo SOLO de BASE DE DATOS (PostgreSQL 18+): DDL, ENUMs y
 funciones SQL. No toques backend ni frontend. No inventes patrones nuevos:
 imita los que ya están.
 

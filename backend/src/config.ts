@@ -13,7 +13,12 @@ export const configServer = {
   domain: process.env.DOMAIN_FRONTEND || "http://localhost:5004",
   auth: {
     secret: process.env.JWT_SECRET || "default_secret",
-    expiresIn: process.env.JWT_EXPIRE_IN ? parseInt(process.env.JWT_EXPIRE_IN) : 7 * 24 * 60 * 60, // 7 días por defecto
+    // Access token (JWT): vida corta, se renueva con el refresh token.
+    accessExpiresIn: process.env.JWT_ACCESS_EXPIRE_IN ? parseInt(process.env.JWT_ACCESS_EXPIRE_IN) : 15 * 60, // 15 min por defecto
+    // Sesión / refresh token rotativo: se extiende en cada renovación.
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRE_IN ? parseInt(process.env.JWT_REFRESH_EXPIRE_IN) : 7 * 24 * 60 * 60, // 7 días por defecto
+    // Días que se conservan las sesiones cerradas antes de purgarlas de la BD.
+    sessionRetentionDays: parseInt(process.env.SESSION_RETENTION_DAYS || "30"),
   },
   db: {
     user: process.env.DB_USER,

@@ -1,6 +1,6 @@
 # `postgres/` — Estructura de la base de datos
 
-Base de datos **PostgreSQL 15+** de la plantilla base CorAll. Organizada **por
+Base de datos **PostgreSQL 18+** de la plantilla base CorAll. Organizada **por
 esquema**, con `core` como base. Ver modelo en `tables.dbml`.
 
 ## Estructura de carpetas
@@ -17,7 +17,8 @@ postgres/
 │  ├─ seed-permissions.sql         ← Seed idempotente del catálogo de permisos
 │  ├─ *.sql                        ← Funciones del núcleo (get_users, save_user, …)
 │  ├─ audit/*.sql                  ← save_audit_log, get_audit_logs
-│  └─ notifications/*.sql          ← Tablas y procedimientos de notificaciones
+│  ├─ notifications/*.sql          ← Tablas y procedimientos de notificaciones
+│  └─ sessions/*.sql               ← core.user_sessions + refresh token rotativo
 │
 └─ <esquema>/                      ← Un directorio por esquema de negocio
    ├─ <esquema>-tables.sql         ← DDL del esquema
@@ -41,15 +42,31 @@ manualmente al afinar cada esquema (ver «Flujo de trabajo»).
 
 ## Convenciones de tabla (obligatorias)
 
-- PK: `id SERIAL PRIMARY KEY`.
-- Toda tabla termina con las columnas de auditoría EN ESTE ORDEN:
-  `status BOOLEAN DEFAULT TRUE` (soft-delete), `user_cr INTEGER`,
+- PK: `id SERIAL PRIMARY KEY` (o `UUID PRIMARY KEY DEFAULT uuidv7()` cuando el id
+  debe ser opaco; `uuidv7()` es nativo de PostgreSQL 18 y va ordenado en el tiempo,
+  así que no fragmenta el índice como `gen_random_uuid()`).
+- Toda tabla **de entidad** termina con las columnas de auditoría EN ESTE ORDEN:
+  `status BOOLEAN DEFAULT TRUE` (soft-delete), `user_cr INTEGER`, `token_cr UUID`,
   `date_cr BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT`,
-  `user_up INTEGER`, `date_up BIGINT`.
+  `user_up INTEGER`, `token_up UUID`, `date_up BIGINT`.
+  El par es **quién + desde qué sesión + cuándo**: `token_cr`/`token_up` guardan
+  `core.user_sessions.id` (el `sid` del access token), de modo que cada fila se
+  puede rastrear hasta el dispositivo concreto que la creó o modificó.
+  > **Excepción — tablas de evento.** `core.notifications`,
+  > `core.password_recovery` y `core.user_sessions` NO llevan el bloque: no las
+  > crea ni edita un usuario desde una pantalla, sino un hecho del sistema
+  > (llega una notificación, se pide un código, alguien inicia sesión). Ahí
+  > `user_cr`/`token_cr` serían siempre el mismo valor que ya está en otra
+  > columna, así que describen su ciclo de vida con columnas propias
+  > (`date_cr`/`created_at`, `used_at`, `revoked_at`, `revoked_by_*`).
+  > Antes de copiar el bloque, pregúntate: *¿puede esta fila haber sido creada
+  > por una sesión distinta de la que describe?* Si la respuesta es no, sobra.
 - `enable BOOLEAN DEFAULT TRUE` cuando la entidad se activa/desactiva.
 - Fechas SIEMPRE en epoch `BIGINT` (no timestamp).
 - Montos `NUMERIC(12,2)`.
-- FKs de auditoría (`user_cr`/`user_up`) NO se declaran como `REFERENCES`.
+- FKs de auditoría (`user_cr`/`user_up`/`token_cr`/`token_up`) NO se declaran
+  como `REFERENCES`: son trazas históricas y deben sobrevivir al borrado del
+  usuario o a la purga de sesiones.
 - Nombres de tabla en snake_case plural en español.
 - ENUMs: uno por concepto, prefijado por esquema, idempotente
   (`DO $$ BEGIN CREATE TYPE ... EXCEPTION WHEN duplicate_object THEN NULL; END $$;`).
@@ -71,9 +88,40 @@ Una función por archivo en `<schema>/<entidad>/`:
   `core.audit_log` (inmutable), poblada con `core.save_audit_log(req json)`.
 - Cada operación crítica se registra con: `user_id`, `module` (valor de
   `core.enum_module`), `table_name`, `record_id`, `action`, `old_data`/`new_data`
-  (JSONB) e `ip_address`.
-- A nivel de fila, la trazabilidad mínima la dan las columnas de auditoría
-  (`user_cr`/`date_cr` al insertar; `user_up`/`date_up` al actualizar).
+  (JSONB), `ip_address` y `token_cr` (la sesión desde la que se ejecutó).
+- A nivel de fila, la trazabilidad mínima la dan las columnas de auditoría:
+  `user_cr`/`token_cr`/`date_cr` al insertar; `user_up`/`token_up`/`date_up` al
+  actualizar. Toda función `save_*`/`delete_*` debe aceptar `token_cr` en el
+  `req json` y grabarlo — el backend lo manda siempre como `(user as any).sid`.
+
+## Sesiones (`core/sessions/`)
+
+`core.user_sessions` es una fila por dispositivo con sesión abierta. Su `id`
+(UUID v7) es a la vez el `sid` del access token y el `token_cr`/`token_up` del
+resto de tablas. Del refresh token solo se guarda `SHA-256(secreto)`, y cada
+renovación lo rota: si llega un secreto ya rotado se asume robo y
+`core.rotate_user_session` revoca la sesión entera (`REUSE_DETECTED`).
+
+Es una **tabla de evento**, sin bloque de auditoría (ver la excepción arriba).
+Su ciclo de vida se lee así:
+
+| Columna | Significado |
+|---|---|
+| `date_cr` | Cuándo se abrió (el login). |
+| `last_used_at` | Última renovación del refresh token. |
+| `expires_at` | Hasta cuándo vale; se extiende en cada renovación. |
+| `revoked_at` | Cuándo se cerró. `NULL` = activa. |
+| `revoked_reason` | Por qué. `NULL` con `revoked_at` = venció sola. |
+| `revoked_by_user` / `revoked_by_session` | **Quién** la cerró y **desde qué dispositivo**: el propio usuario desde otra sesión, o el administrador que lo forzó. `NULL` en cierres automáticos. |
+
+Una sesión está activa si `revoked_at IS NULL AND expires_at > now`; no hay
+columna `status` que pueda contradecir a `revoked_at`.
+
+Funciones: `create_user_session`, `rotate_user_session`, `get_user_session`
+(una), `get_user_sessions` (activas del usuario), `revoke_user_session`,
+`revoke_user_sessions` (con `except_id`) y `purge_user_sessions` (job de
+limpieza). Las del flujo de login devuelven `{ "error": … }` dentro del JSON en
+vez de `RAISE`, para que el backend distinga un 401 de un fallo de BD.
 
 ## Reglas del `.dbml` por esquema
 

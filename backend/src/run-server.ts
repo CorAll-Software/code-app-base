@@ -1,6 +1,7 @@
 import { emailService } from "@core/email/email-service"
 import { userStore } from "@core/store"
-// import { execProcedure } from "@core/db/connection"
+import { execProcedure } from "@core/db/connection"
+import { configServer } from "@/config"
 // import { wsService } from "@core/redis"
 
 /**
@@ -17,8 +18,26 @@ import { userStore } from "@core/store"
  *   runMiJob()
  *   setInterval(runMiJob, 60 * 60 * 1000) // cada hora
  */
+
+/**
+ * Purga las sesiones ya cerradas o vencidas hace más de
+ * `SESSION_RETENTION_DAYS` días. core.user_sessions crece con cada login, así
+ * que sin esto la tabla nunca deja de crecer.
+ */
+const purgeSessions = async () => {
+    const { result, error } = await execProcedure('core.purge_user_sessions', [
+        { days: configServer.auth.sessionRetentionDays }
+    ])
+    if (error) return console.error('[JOB] purge_user_sessions:', error)
+    if (result?.deleted) console.log(`[JOB] purge_user_sessions: ${result.deleted} sesiones eliminadas`)
+}
+
 export const mainServer = async () => {
     // Verificación de conexiones de infraestructura
     userStore.testConnection()
     emailService.testConnection()
+
+    // Mantenimiento de sesiones (al arrancar y luego cada 24 h)
+    purgeSessions()
+    setInterval(purgeSessions, 24 * 60 * 60 * 1000)
 }

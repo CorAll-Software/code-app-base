@@ -1,8 +1,7 @@
-// implementación de redis para permisos en memoria
+// implementación de redis para permisos y sesiones en memoria
 
 import { RedisClient } from 'bun'
 import { configServer } from '@/config'
-import { createHash } from 'crypto';
 import { PermisoSlug } from './permisos.type';
 
 export class UserStore {
@@ -24,7 +23,7 @@ export class UserStore {
             connectionTimeout: 5000,
         });
         // Si la conexión se cierra, reintentar proactivamente para no quedar
-        // en estado cerrado permanente (que invalidaría todos los tokens).
+        // en estado cerrado permanente.
         client.onclose = (error) => {
             console.error('[Redis] Conexión cerrada, reintentando...', (error as any)?.message ?? error);
             client.connect().catch(() => { });
@@ -75,26 +74,55 @@ export class UserStore {
         return !!result;
     }
 
-    async addToken(token: string) {
-        const hash = createHash("sha256").update(token).digest("hex");
+    // ── Sesiones ─────────────────────────────────────────────────────────────
+    // Redis es solo la CACHÉ del estado de la sesión; la fuente de verdad es
+    // core.user_sessions. Un fallo de Redis degrada a consulta en BD, nunca
+    // cierra sesiones (ver core/session.ts).
+
+    /** Marca la sesión como activa durante `ttlSeconds`. */
+    async addSession(sessionId: string, userId: number | string, ttlSeconds: number) {
         await this.exec(async (c) => {
-            await c.set(`whitelist:${hash}`, "1", "EX", configServer.auth.expiresIn);
+            await c.set(`session:${sessionId}`, String(userId), 'EX', ttlSeconds);
+            await c.sadd(`user:${userId}:sessions`, sessionId);
+            await c.expire(`user:${userId}:sessions`, ttlSeconds);
         });
     }
 
-    async removeToken(token: string) {
-        const hash = createHash("sha256").update(token).digest("hex");
-        await this.exec(async (c) => {
-            await c.del(`whitelist:${hash}`);
-        });
-    }
-
-    async isTokenValid(token: string): Promise<boolean> {
-        const hash = createHash("sha256").update(token).digest("hex");
+    /** `true` solo si Redis confirma la sesión; `false` obliga a verificar en BD. */
+    async isSessionCached(sessionId: string): Promise<boolean> {
         const result = await this.exec(async (c) => {
-            return await c.exists(`whitelist:${hash}`);
+            return await c.exists(`session:${sessionId}`);
         });
         return !!result;
+    }
+
+    async removeSession(sessionId: string, userId?: number | string) {
+        await this.exec(async (c) => {
+            await c.del(`session:${sessionId}`);
+            if (userId !== undefined) {
+                await c.srem(`user:${userId}:sessions`, sessionId);
+            }
+        });
+    }
+
+    async removeSessions(sessionIds: string[], userId?: number | string) {
+        if (!sessionIds.length) return;
+        await this.exec(async (c) => {
+            for (const id of sessionIds) {
+                await c.del(`session:${id}`);
+                if (userId !== undefined) {
+                    await c.srem(`user:${userId}:sessions`, id);
+                }
+            }
+        });
+    }
+
+    /** Ids de sesión que Redis tiene registrados para el usuario. */
+    async getUserSessions(userId: number | string): Promise<string[]> {
+        const result = await this.exec(async (c) => {
+            return await c.smembers(`user:${userId}:sessions`);
+        });
+        return result || [];
     }
 
     async testConnection(): Promise<void> {

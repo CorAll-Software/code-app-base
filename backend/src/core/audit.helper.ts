@@ -13,6 +13,8 @@ interface AuditParams {
     oldData?: any
     newData?: any
     ipAddress?: string
+    /** Sesión desde la que se ejecutó la acción (`user.sid`) → columna token_cr. */
+    sessionId?: string | null
 }
 
 /**
@@ -29,6 +31,7 @@ export function logAudit(params: AuditParams): void {
         old_data: params.oldData ? JSON.stringify(params.oldData) : null,
         new_data: params.newData ? JSON.stringify(params.newData) : null,
         ip_address: params.ipAddress || 'unknown',
+        token_cr: params.sessionId ?? null,
     }
 
     execProcedure('core.save_audit_log', [payload]).catch(err => {
@@ -53,4 +56,4 @@ export function resolveAuditAction(bodyData: any): AuditAction {
  */
 export function extractClientIp(headers: any): string {
     return headers?.['x-forwarded-for'] || headers?.['x-real-ip'] || 'unknown'
-} 
+}

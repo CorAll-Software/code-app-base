@@ -1,11 +1,12 @@
 # Backend · API Elysia (Bun)
 
-API del núcleo: autenticación JWT, usuarios, roles, permisos y auditoría.
+API del núcleo: autenticación (access token JWT + refresh rotativo con sesiones
+por dispositivo), usuarios, roles, permisos y auditoría.
 
 ## Requisitos
 
 - [Bun](https://bun.sh) 1.3+
-- PostgreSQL 15+ con el esquema `core` cargado (ver `../postgres/`)
+- PostgreSQL 18+ con el esquema `core` cargado (ver `../postgres/`)
 - Redis / Valkey
 
 ## Arranque
@@ -37,8 +38,9 @@ src/
 ├── core/              # Infraestructura transversal
 │   ├── db/connection.ts        # Pool Bun SQL + execProcedure()
 │   ├── auth.guard.ts           # Macro de autorización por permiso (JWT + RBAC)
-│   ├── jwt.ts                  # Firma/verificación de tokens
-│   ├── store.ts / redis.ts     # Estado en Redis (sesiones, permisos por rol)
+│   ├── jwt.ts                  # Firma/verificación del access token (claim sid)
+│   ├── session.ts              # Sesiones + refresh rotativo (core.user_sessions)
+│   ├── store.ts / redis.ts     # Caché en Redis (sesiones activas, permisos)
 │   ├── audit.helper.ts         # logAudit() → core.save_audit_log
 │   ├── s3.ts / image.ts        # Storage S3/MinIO + conversión WebP
 │   ├── email/email-service.ts  # Nodemailer
