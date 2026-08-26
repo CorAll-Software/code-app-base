@@ -2,7 +2,6 @@ import { emailService } from "@core/email/email-service"
 import { userStore } from "@core/store"
 import { execProcedure } from "@core/db/connection"
 import { configServer } from "@/config"
-// import { wsService } from "@core/redis"
 
 /**
  * Tareas de arranque del servidor.

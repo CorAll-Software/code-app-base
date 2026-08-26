@@ -40,11 +40,11 @@ src/
 │   ├── auth.guard.ts           # Macro de autorización por permiso (JWT + RBAC)
 │   ├── jwt.ts                  # Firma/verificación del access token (claim sid)
 │   ├── session.ts              # Sesiones + refresh rotativo (core.user_sessions)
+│   ├── permissions.ts          # Caché de permisos con respaldo en BD
 │   ├── store.ts / redis.ts     # Caché en Redis (sesiones activas, permisos)
 │   ├── audit.helper.ts         # logAudit() → core.save_audit_log
 │   ├── s3.ts / image.ts        # Storage S3/MinIO + conversión WebP
 │   ├── email/email-service.ts  # Nodemailer
-│   ├── segurity/password.ts    # Bun.password (bcrypt)
 │   └── permissions.constants.ts# Diccionario de slugs (gemelo del frontend)
 └── modules/
     └── core/          # auth, users, roles, permissions, notifications (+ auth.ws)
@@ -57,4 +57,3 @@ Ver `../docs/practicas.md` y `../docs/prompt-nuevo-modulo.md`.
 Resumen: crear `src/modules/<modulo>/<modulo>.api.ts`, registrarlo en
 `router.ts`, declarar sus slugs en `core/permissions.constants.ts` (y en el
 gemelo del frontend + seed SQL), y protegido con el guard de permisos.
-│   ├── permissions.ts          # Caché de permisos con respaldo en BD

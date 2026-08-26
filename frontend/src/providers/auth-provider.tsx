@@ -7,14 +7,13 @@ import { POST, SESSION_REFRESHED_EVENT, clearSession, getRefreshToken, refreshSe
 
 export interface IAuthContext {
     user: UserSession | null;
+    /** Segundos de vida del access token vigente (para la renovación proactiva). */
     expiredIn: number;
-    startTime: number;
     loading: boolean;
     setLoading: (loading: boolean) => void;
     login: (userData: any, expiredIn: number) => void;
     logout: () => void;
     isAuthenticated: () => boolean;
-    isForcedChangePassword: () => boolean;
     hasPermission: (permiso: PermisoSlug | PermisoSlug[]) => boolean;
     refreshPermissions: () => Promise<void>;
 }
@@ -115,11 +114,6 @@ export const AuthProvider = ({ children }) => {
         // Verificar si el usuario está autenticado
         return !!user;
     };
-
-    // const isForcedChangePassword = () => {
-    //     // Verificar si el usuario debe cambiar la contraseña
-    //     return user?.changePassword;
-    // };
 
     // El backend avisa cada renovación (la dispara core/http.ts ante un 401 o
     // el temporizador de abajo) con los datos frescos del usuario.
