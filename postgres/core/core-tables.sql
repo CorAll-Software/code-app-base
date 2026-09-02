@@ -7,16 +7,6 @@
 CREATE SCHEMA IF NOT EXISTS core;
 
 -- ── ENUMs ────────────────────────────────────────────────────────────────────
-DO $$ BEGIN CREATE TYPE core.enum_audit_action AS ENUM ('INSERT', 'UPDATE', 'DELETE'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- Módulos del sistema. Al crear un módulo de negocio, agrega su valor aquí
--- (ALTER TYPE core.enum_module ADD VALUE 'MI_MODULO';) y sincroniza:
---   · backend/src/core/audit.helper.ts (AuditModule)
---   · frontend/src/modules/configuracion/services/audit.service.ts (AuditModule)
-DO $$ BEGIN CREATE TYPE core.enum_module AS ENUM (
-    'CORE',          -- Login, usuarios, roles, permisos y auditoría
-    'ADMIN'          -- Administración / configuración general
-); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Motivo por el que una sesión dejó de estar activa (ver core/sessions/).
 DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
@@ -108,25 +98,10 @@ CREATE TABLE IF NOT EXISTS core.user_roles (
     UNIQUE (user_id, role_id)
 );
 
--- Bitácora de auditoría inmutable (RNF-04, RNF-05).
-CREATE TABLE IF NOT EXISTS core.audit_log (
-    id         SERIAL PRIMARY KEY,
-    user_id    INTEGER REFERENCES core.users(id),
-    module     core.enum_module,
-    table_name VARCHAR(100),
-    record_id  INTEGER,
-    action     core.enum_audit_action,
-    old_data   JSONB,
-    new_data   JSONB,
-    ip_address VARCHAR(45),
-    status     BOOLEAN DEFAULT TRUE,
-    user_cr    INTEGER,
-    token_cr   UUID,
-    date_cr    BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
-    user_up    INTEGER,
-    token_up   UUID,
-    date_up    BIGINT
-);
+-- La bitácora de auditoría NO vive aquí: es un esquema propio y transversal,
+-- `auditoria.log` (ver postgres/auditoria/). No se declara en `core` porque no
+-- es una tabla del núcleo de identidad, y porque su DDL trae consigo los
+-- triggers de inmutabilidad que la hacen servir como evidencia.
 
 -- Notificaciones del sistema (campana de notificaciones).
 CREATE TABLE IF NOT EXISTS core.notifications (

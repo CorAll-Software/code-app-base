@@ -1,0 +1,72 @@
+// =============================================================================
+// ESQUEMA: auditoria — Bitácora inmutable de acciones (BASE)
+// Diagrama ER autónomo de este esquema. Render: https://dbdiagram.io
+//
+// Una sola tabla y CERO refs: `usuario_id` y `sesion_id` apuntan a core pero NO
+// se declaran como FK (ni aquí ni en el DDL). Es deliberado — la evidencia debe
+// sobrevivir al borrado del usuario que la generó y a la purga de sesiones,
+// igual que las columnas de auditoría de fila del resto del sistema.
+// El agregado completo está en postgres/tables.dbml.
+// =============================================================================
+
+Project app_base_auditoria {
+  database_type: 'PostgreSQL'
+  Note: 'Esquema auditoria — Plantilla base CorAll.'
+}
+
+// ── ENUMs ────────────────────────────────────────────────────────────────────
+
+// Las cinco primeras las escribe solo el trigger genérico; las demás las
+// declaran los procedimientos y la capa HTTP (PostgreSQL no dispara triggers en
+// SELECT, ni en un intento que no llega a tocar una fila).
+Enum auditoria.enum_operacion {
+  INSERT          [note: 'Alta (fila completa en datos_despues)']
+  UPDATE          [note: 'Modificación (solo el diff, en campos)']
+  DELETE          [note: 'Borrado físico (fila completa en datos_antes)']
+  BAJA            [note: 'Soft-delete: status TRUE → FALSE']
+  REACTIVACION    [note: 'Soft-delete revertido: status FALSE → TRUE']
+  LECTURA         [note: 'Acceso a información']
+  DESCARGA        [note: 'Entrega de un archivo / URL firmada']
+  EXPORTACION     [note: 'Volcado masivo a Excel/PDF']
+  LOGIN           [note: 'Inicio de sesión correcto']
+  LOGIN_FALLIDO   [note: 'Credenciales inválidas o cuenta inactiva']
+  ACCESO_DENEGADO [note: '403 del guard, o credencial rechazada (reuso de token)']
+}
+
+// ── Tablas ───────────────────────────────────────────────────────────────────
+
+Table auditoria.log {
+  id_log        bigserial                [pk]
+  esquema       varchar(63)              [not null]
+  entidad       varchar(63)              [not null, note: 'Tabla física o recurso lógico']
+  id_registro   varchar(80)              [note: 'PK como texto: sirve para INTEGER y para UUID']
+  operacion     auditoria.enum_operacion [not null]
+  usuario_id    integer                  [note: 'FK lógica → core.users.id (sin REFERENCES a propósito)']
+  rol           varchar(100)             [note: 'El rol que tenía EN EL MOMENTO de la acción']
+  sesion_id     uuid                     [note: 'FK lógica → core.user_sessions.id (el sid del token)']
+  id_caso       varchar(80)              [note: 'Agregado de negocio; NULL en la plantilla']
+  campos        jsonb                    [note: 'UPDATE: {columna: {antes, despues}}']
+  datos_antes   jsonb                    [note: 'Fila completa en DELETE (enmascarada)']
+  datos_despues jsonb                    [note: 'Fila completa en INSERT (enmascarada)']
+  detalle       text
+  ip            varchar(60)
+  user_agent    varchar(300)
+  endpoint      varchar(200)             [note: 'p.ej. PUT /users']
+  txid          bigint                   [not null, default: `txid_current()`, note: 'Agrupa las filas de un mismo cambio']
+  fecha         bigint                   [not null, default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+
+  indexes {
+    (esquema, entidad, id_registro, fecha) [note: 'Historial de un registro']
+    (usuario_id, fecha)                    [note: 'Historial de un usuario']
+    (id_caso, fecha)                       [note: 'Historial de un caso (índice PARCIAL: WHERE id_caso IS NOT NULL)']
+    (operacion, fecha)
+    fecha
+    txid
+  }
+
+  Note: 'Bitácora inmutable: SOLO admite INSERT. Dos triggers (BEFORE UPDATE OR DELETE y BEFORE TRUNCATE) abortan cualquier otra cosa, también desde una consola con el usuario de la aplicación. Tabla de evento: sin bloque de auditoría de fila — un status daría la forma de ocultar una fila sin borrarla, que es el agujero que debe cerrar.'
+}
+
+TableGroup auditoria {
+  auditoria.log
+}

@@ -9,6 +9,11 @@ DECLARE
     v_token_cr UUID;
     result     json;
 BEGIN
+    -- Declara quién actúa (y desde qué sesión) para los triggers de auditoría.
+    -- Va ANTES de cualquier escritura: lo que se declare después no lo verían
+    -- los triggers ya disparados. Ver postgres/auditoria/contexto.sql.
+    PERFORM auditoria.contexto(req);
+
     v_id      := (req->>'id')::INTEGER;
     -- Acepta NULL explícito para eliminar la foto
     v_foto_url := req->>'foto_url';

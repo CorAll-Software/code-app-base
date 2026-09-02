@@ -18,16 +18,20 @@ Project app_base {
 // ENUMs
 // ─────────────────────────────────────────────────────────────────────────────
 
-Enum core.enum_audit_action {
-  INSERT
-  UPDATE
-  DELETE
-}
-
-// Módulos del sistema. Agrega un valor por cada módulo de negocio.
-Enum core.enum_module {
-  CORE  [note: 'Login, usuarios, roles, permisos y auditoría']
-  ADMIN [note: 'Administración / configuración general']
+// Operaciones de la bitácora. Las cinco primeras las escribe solo el trigger
+// genérico; las demás las declaran los procedimientos y la capa HTTP.
+Enum auditoria.enum_operacion {
+  INSERT          [note: 'Alta (fila completa en datos_despues)']
+  UPDATE          [note: 'Modificación (solo el diff, en campos)']
+  DELETE          [note: 'Borrado físico (fila completa en datos_antes)']
+  BAJA            [note: 'Soft-delete: status TRUE → FALSE']
+  REACTIVACION    [note: 'Soft-delete revertido: status FALSE → TRUE']
+  LECTURA         [note: 'Acceso a información']
+  DESCARGA        [note: 'Entrega de un archivo / URL firmada']
+  EXPORTACION     [note: 'Volcado masivo a Excel/PDF']
+  LOGIN           [note: 'Inicio de sesión correcto']
+  LOGIN_FALLIDO   [note: 'Credenciales inválidas o cuenta inactiva']
+  ACCESO_DENEGADO [note: '403 del guard, o credencial rechazada (reuso de token)']
 }
 
 // Motivo por el que una sesión dejó de estar activa.
@@ -128,26 +132,6 @@ Table core.user_roles {
   }
 }
 
-Table core.audit_log {
-  id         serial                 [pk]
-  user_id    integer                [ref: > core.users.id]
-  module     core.enum_module
-  table_name varchar(100)
-  record_id  integer
-  action     core.enum_audit_action
-  old_data   jsonb
-  new_data   jsonb
-  ip_address varchar(45)
-  status     boolean                [default: true]
-  user_cr    integer
-  token_cr   uuid
-  date_cr    bigint                 [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
-  user_up    integer
-  token_up   uuid
-  date_up    bigint
-  Note: 'Bitácora de auditoría inmutable.'
-}
-
 Table core.notifications {
   id         uuid         [pk, default: `uuidv7()`]
   user_id    integer      [not null, ref: > core.users.id]
@@ -206,14 +190,58 @@ Table core.user_sessions {
   Note: 'Sesiones abiertas (refresh token rotativo). El id es el sid del access token y el token_cr/token_up del resto de tablas. Tabla de evento: sin bloque de auditoría.'
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ESQUEMA auditoria — Bitácora inmutable de acciones (BASE)
+// Espejo de auditoria/auditoria-tables.dbml
+//
+// Sin `ref:` a propósito, aunque `usuario_id` y `sesion_id` apunten a core: no
+// son FK reales ni en el DDL. La evidencia debe sobrevivir al borrado del
+// usuario que la generó y a la purga de sesiones.
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table auditoria.log {
+  id_log        bigserial                [pk]
+  esquema       varchar(63)              [not null]
+  entidad       varchar(63)              [not null, note: 'Tabla física o recurso lógico']
+  id_registro   varchar(80)              [note: 'PK como texto: sirve para INTEGER y para UUID']
+  operacion     auditoria.enum_operacion [not null]
+  usuario_id    integer                  [note: 'FK lógica → core.users.id']
+  rol           varchar(100)             [note: 'El rol que tenía EN EL MOMENTO de la acción']
+  sesion_id     uuid                     [note: 'FK lógica → core.user_sessions.id']
+  id_caso       varchar(80)              [note: 'Agregado de negocio; NULL en la plantilla']
+  campos        jsonb                    [note: 'UPDATE: {columna: {antes, despues}}']
+  datos_antes   jsonb                    [note: 'Fila completa en DELETE (enmascarada)']
+  datos_despues jsonb                    [note: 'Fila completa en INSERT (enmascarada)']
+  detalle       text
+  ip            varchar(60)
+  user_agent    varchar(300)
+  endpoint      varchar(200)
+  txid          bigint                   [not null, default: `txid_current()`]
+  fecha         bigint                   [not null, default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+
+  indexes {
+    (esquema, entidad, id_registro, fecha)
+    (usuario_id, fecha)
+    (id_caso, fecha) [note: 'PARCIAL: WHERE id_caso IS NOT NULL']
+    (operacion, fecha)
+    fecha
+    txid
+  }
+
+  Note: 'Bitácora inmutable: SOLO admite INSERT. Dos triggers abortan UPDATE, DELETE y TRUNCATE.'
+}
+
 TableGroup core {
   core.permissions
   core.users
   core.roles
   core.role_permissions
   core.user_roles
-  core.audit_log
   core.notifications
   core.password_recovery
   core.user_sessions
+}
+
+TableGroup auditoria {
+  auditoria.log
 }

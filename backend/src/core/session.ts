@@ -38,6 +38,8 @@ export interface SessionInfo {
 export interface SessionContext {
     ip?: string;
     userAgent?: string;
+    /** Ruta que abrió la sesión; completa la traza del evento LOGIN. */
+    endpoint?: string;
 }
 
 export type RevokeReason = 'LOGOUT' | 'MANUAL' | 'PASSWORD_CHANGE' | 'REUSE_DETECTED' | 'ADMIN';
@@ -97,6 +99,10 @@ export const createSession = async (
         user_agent: ctx.userAgent ?? null,
         device: describeDevice(ctx.userAgent),
         expires_at: expiresAt,
+        // `core.create_user_session` registra el evento LOGIN en la bitácora:
+        // la tabla está fuera del trigger de auditoría (la rotación del refresh
+        // sería puro ruido), pero abrir sesión sí es una acción.
+        endpoint: ctx.endpoint ?? null,
     }]);
 
     if (error || !result?.id) {

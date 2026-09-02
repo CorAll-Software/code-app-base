@@ -7,6 +7,11 @@ DECLARE
     v_user_cr INTEGER;
     v_token_cr UUID;
 BEGIN
+    -- Declara quién actúa (y desde qué sesión) para los triggers de auditoría.
+    -- Va ANTES de cualquier escritura: lo que se declare después no lo verían
+    -- los triggers ya disparados. Ver postgres/auditoria/contexto.sql.
+    PERFORM auditoria.contexto(req);
+
     v_id := (req->>'id')::INTEGER;
     v_user_cr := (req->>'user_cr')::INTEGER;
     v_token_cr := (req->>'token_cr')::UUID;

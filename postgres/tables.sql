@@ -14,16 +14,6 @@
 CREATE SCHEMA IF NOT EXISTS core;
 
 -- ── ENUMs ────────────────────────────────────────────────────────────────────
-DO $$ BEGIN CREATE TYPE core.enum_audit_action AS ENUM ('INSERT', 'UPDATE', 'DELETE'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- Módulos del sistema. Al crear un módulo de negocio, agrega su valor aquí
--- (ALTER TYPE core.enum_module ADD VALUE 'MI_MODULO';) y sincroniza:
---   · backend/src/core/audit.helper.ts (AuditModule)
---   · frontend/src/modules/configuracion/services/audit.service.ts (AuditModule)
-DO $$ BEGIN CREATE TYPE core.enum_module AS ENUM (
-    'CORE',          -- Login, usuarios, roles, permisos y auditoría
-    'ADMIN'          -- Administración / configuración general
-); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Motivo por el que una sesión dejó de estar activa (ver core/sessions/).
 DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
@@ -115,25 +105,9 @@ CREATE TABLE IF NOT EXISTS core.user_roles (
     UNIQUE (user_id, role_id)
 );
 
--- Bitácora de auditoría inmutable.
-CREATE TABLE IF NOT EXISTS core.audit_log (
-    id         SERIAL PRIMARY KEY,
-    user_id    INTEGER REFERENCES core.users(id),
-    module     core.enum_module,
-    table_name VARCHAR(100),
-    record_id  INTEGER,
-    action     core.enum_audit_action,
-    old_data   JSONB,
-    new_data   JSONB,
-    ip_address VARCHAR(45),
-    status     BOOLEAN DEFAULT TRUE,
-    user_cr    INTEGER,
-    token_cr   UUID,
-    date_cr    BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
-    user_up    INTEGER,
-    token_up   UUID,
-    date_up    BIGINT
-);
+-- La bitácora de auditoría vive en su propio esquema, más abajo en este mismo
+-- archivo (ver «ESQUEMA: auditoria»). No es una tabla de `core`: es transversal
+-- a todos los esquemas y trae sus propios triggers de inmutabilidad.
 
 -- Notificaciones del sistema (campana de notificaciones).
 CREATE TABLE IF NOT EXISTS core.notifications (
@@ -190,6 +164,90 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user    ON core.user_sessions (user
 CREATE INDEX IF NOT EXISTS idx_user_sessions_refresh ON core.user_sessions (refresh_hash);
 
 -- =============================================================================
+-- ESQUEMA: auditoria — Bitácora inmutable de acciones (BASE)
+-- Espejo de auditoria/auditoria-tables.sql
+--
+-- Va después de `core` por orden de lectura, no por dependencia: la bitácora no
+-- tiene FK a ninguna tabla (`usuario_id` NO es un REFERENCES, igual que las
+-- columnas de auditoría de fila) para que la evidencia sobreviva al borrado del
+-- usuario que la generó.
+--
+-- Aquí solo está el DDL. Las funciones del módulo (contexto, trigger genérico,
+-- instalación, eventos y consultas) viven en postgres/auditoria/*.sql y se
+-- aplican con postgres/auditoria/install.sql, que además ACTIVA los triggers.
+--
+-- ESE INSTALADOR NO ES OPCIONAL. Sin él:
+--   · la bitácora queda vacía para siempre — sin trigger, nada la escribe; y
+--   · las funciones del núcleo fallan, porque todas abren con
+--     `PERFORM auditoria.contexto(req)` y esa función no existiría.
+-- Por eso se ejecuta justo después de este archivo y ANTES que postgres/core/*.
+-- =============================================================================
+
+CREATE SCHEMA IF NOT EXISTS auditoria;
+
+DO $$ BEGIN CREATE TYPE auditoria.enum_operacion AS ENUM (
+    'INSERT', 'UPDATE', 'DELETE', 'BAJA', 'REACTIVACION',
+    'LECTURA', 'DESCARGA', 'EXPORTACION',
+    'LOGIN', 'LOGIN_FALLIDO', 'ACCESO_DENEGADO'
+); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Tabla de EVENTO: sin bloque de auditoría de fila. Un `status` daría la forma
+-- de ocultar una fila sin borrarla, que es justo el agujero que debe cerrar.
+CREATE TABLE IF NOT EXISTS auditoria.log (
+    id_log        BIGSERIAL PRIMARY KEY,
+    esquema       VARCHAR(63) NOT NULL,
+    entidad       VARCHAR(63) NOT NULL,   -- tabla física o recurso lógico
+    id_registro   VARCHAR(80),            -- PK como texto: sirve para INTEGER y UUID
+    operacion     auditoria.enum_operacion NOT NULL,
+    usuario_id    INTEGER,
+    rol           VARCHAR(100),
+    sesion_id     UUID,                   -- core.user_sessions.id (el `sid`)
+    id_caso       VARCHAR(80),            -- agregado de negocio; NULL en la plantilla
+    campos        JSONB,                  -- UPDATE: {columna: {antes, despues}}
+    datos_antes   JSONB,                  -- fila completa en DELETE
+    datos_despues JSONB,                  -- fila completa en INSERT
+    detalle       TEXT,
+    ip            VARCHAR(60),
+    user_agent    VARCHAR(300),
+    endpoint      VARCHAR(200),
+    txid          BIGINT NOT NULL DEFAULT txid_current(),
+    fecha         BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditoria_registro  ON auditoria.log (esquema, entidad, id_registro, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario   ON auditoria.log (usuario_id, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_auditoria_caso      ON auditoria.log (id_caso, fecha DESC) WHERE id_caso IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_auditoria_operacion ON auditoria.log (operacion, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha     ON auditoria.log (fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_auditoria_txid      ON auditoria.log (txid);
+
+-- Solo INSERT: una bitácora editable no prueba nada.
+CREATE OR REPLACE FUNCTION auditoria.log_inmutable()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+    RAISE EXCEPTION 'La bitácora de auditoría no es editable (operación % rechazada)', TG_OP;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_auditoria_inmutable ON auditoria.log;
+CREATE TRIGGER trg_auditoria_inmutable
+    BEFORE UPDATE OR DELETE ON auditoria.log
+    FOR EACH ROW EXECUTE FUNCTION auditoria.log_inmutable();
+
+-- TRUNCATE no dispara triggers de fila: necesita el suyo, por sentencia.
+DROP TRIGGER IF EXISTS trg_auditoria_no_truncate ON auditoria.log;
+CREATE TRIGGER trg_auditoria_no_truncate
+    BEFORE TRUNCATE ON auditoria.log
+    FOR EACH STATEMENT EXECUTE FUNCTION auditoria.log_inmutable();
+
+-- =============================================================================
 -- ESQUEMAS DE NEGOCIO
 -- Anexa aquí el DDL de cada esquema del proyecto, en orden de dependencias FK.
+--
+-- IMPORTANTE: tras añadir un esquema, actívale la auditoría con
+--   SELECT auditoria.activar_esquema('<esquema>');
+-- Sin eso sus tablas no aparecerán NUNCA en la bitácora, y esa ausencia se lee
+-- igual que "no pasó nada". `auditoria.get_cobertura()` lo delata.
 -- =============================================================================

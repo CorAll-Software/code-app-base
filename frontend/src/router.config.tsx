@@ -53,7 +53,7 @@ export const APP_ROUTES: AppRoute[] = [
     path: "ajustes/ajustes-auditoria",
     label: "Auditoría",
     slug: PERMISSIONS.AUDITORIA.VIEW,
-    load: () => import("./modules/configuracion/pages/AuditManagement.page").then((m) => ({ default: m.AuditManagementPage })),
+    load: () => import("./modules/auditoria/pages/Auditoria.page").then((m) => ({ default: m.AuditoriaPage })),
   },
 ];
 

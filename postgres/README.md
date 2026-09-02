@@ -11,14 +11,25 @@ postgres/
 ├─ tables.sql                      ← AGREGADO: construye TODA la BD de una vez (orden FK)
 ├─ tables.dbml                     ← AGREGADO: diagrama ER completo (dbdiagram.io)
 │
-├─ core/                           ← Identidad, accesos, auditoría (BASE)
+├─ core/                           ← Identidad y accesos (BASE)
 │  ├─ core-tables.sql              ← DDL del esquema (tablas + ENUMs)
 │  ├─ core-tables.dbml             ← Diagrama ER solo de este esquema
 │  ├─ seed-permissions.sql         ← Seed idempotente del catálogo de permisos
 │  ├─ *.sql                        ← Funciones del núcleo (get_users, save_user, …)
-│  ├─ audit/*.sql                  ← save_audit_log, get_audit_logs
 │  ├─ notifications/*.sql          ← Tablas y procedimientos de notificaciones
 │  └─ sessions/*.sql               ← core.user_sessions + refresh token rotativo
+│
+├─ auditoria/                      ← Bitácora inmutable de acciones (BASE)
+│  ├─ README.md                    ← Exclusiones, lecturas instrumentadas y límites
+│  ├─ auditoria-tables.sql         ← Tabla `log` + ENUM + triggers de inmutabilidad
+│  ├─ auditoria-tables.dbml        ← Diagrama ER solo de este esquema
+│  ├─ contexto.sql                 ← contexto() + enmascarado de secretos
+│  ├─ trigger.sql                  ← auditar(): UN solo trigger para todas las tablas
+│  ├─ instalacion.sql              ← activar_tabla / activar_esquema / desactivar_tabla
+│  ├─ eventos.sql                  ← registrar_evento(): lecturas y descargas
+│  ├─ consultas.sql                ← get_log, get_registro, get_filtros, get_cobertura
+│  ├─ install.sql                  ← Migración REEJECUTABLE (instala + activa + reporta)
+│  └─ prueba.sql                   ← Prueba de aceptación de la bitácora
 │
 └─ <esquema>/                      ← Un directorio por esquema de negocio
    ├─ <esquema>-tables.sql         ← DDL del esquema
@@ -94,11 +105,29 @@ que permite invalidar la caché de los afectados al editar ese rol.
 
 ## Auditoría (a nivel de BD)
 
+Detalle completo en [`auditoria/README.md`](auditoria/README.md). Lo esencial:
+
 - NO crear bitácora propia por esquema: la auditoría es transversal en
-  `core.audit_log` (inmutable), poblada con `core.save_audit_log(req json)`.
-- Cada operación crítica se registra con: `user_id`, `module` (valor de
-  `core.enum_module`), `table_name`, `record_id`, `action`, `old_data`/`new_data`
-  (JSONB), `ip_address` y `token_cr` (la sesión desde la que se ejecutó).
+  `auditoria.log`, **inmutable** (solo INSERT; UPDATE, DELETE y TRUNCATE abortan
+  por trigger).
+- **No hay que registrar nada a mano.** Las escrituras las audita un **único**
+  trigger genérico que se instala por generación:
+  ```sql
+  SELECT auditoria.activar_esquema('ventas');   -- al agregar un esquema
+  ```
+  Sin esa línea, las tablas del módulo no aparecerán NUNCA en la bitácora, y esa
+  ausencia se lee igual que "no pasó nada". `auditoria.get_cobertura()` lo delata.
+- Toda función que escriba **declara su autor en la primera línea**:
+  ```sql
+  PERFORM auditoria.contexto(req);
+  ```
+  Reconoce los nombres que ya usa el sistema (`user_cr`, `token_cr`, …) y las
+  trazas HTTP que mande la ruta. Es `SET LOCAL`: vive lo que dura la transacción
+  implícita de la llamada, así que no se filtra entre peticiones del pool.
+  Si se omite, la auditoría sigue funcionando cayendo en `user_cr`/`user_up` de
+  la propia fila; solo se pierde precisión.
+- Las **lecturas y descargas** no las ve ningún trigger (PostgreSQL no los
+  dispara en SELECT): se registran con `auditoria.registrar_evento(...)`.
 - A nivel de fila, la trazabilidad mínima la dan las columnas de auditoría:
   `user_cr`/`token_cr`/`date_cr` al insertar; `user_up`/`token_up`/`date_up` al
   actualizar. Toda función `save_*`/`delete_*` debe aceptar `token_cr` en el
@@ -151,13 +180,18 @@ Para que cada archivo **renderice de forma autónoma** en dbdiagram.io:
 2. Refleja el DDL final en `<schema>/<schema>-tables.sql`.
 3. Propaga los cambios al **agregado** raíz `tables.sql` y `tables.dbml`.
 4. Implementa funciones en `<schema>/<entidad>/*.sql` y el módulo de backend
-   `backend/src/modules/<schema>/`.
-5. Agrega el valor del módulo a `core.enum_module` y sus permisos a
-   `core/seed-permissions.sql`.
-6. Actualiza la tabla de estado de este README.
+   `backend/src/modules/<schema>/`. Cada función que escriba empieza con
+   `PERFORM auditoria.contexto(req);`.
+5. Agrega sus permisos a `core/seed-permissions.sql`.
+6. **Activa la auditoría del esquema**: `SELECT auditoria.activar_esquema('<schema>');`
+   (o vuelve a correr `auditoria/install.sql`, que barre todos los esquemas).
+   Compruébalo con `auditoria.get_cobertura()`: una tabla en `false` no dejará
+   rastro jamás.
+7. Actualiza la tabla de estado de este README.
 
 ## Estado de los esquemas
 
 | Esquema | `*-tables.sql` | `*-tables.dbml` | Afinado |
 |---|---|---|---|
 | core | ✅ | ✅ | ✅ |
+| auditoria | ✅ | ✅ | ✅ |

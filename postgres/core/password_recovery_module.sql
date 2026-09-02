@@ -108,6 +108,11 @@ AS $function$
         _recovery_id   INTEGER;
         _now           BIGINT := EXTRACT(EPOCH FROM NOW())::BIGINT;
     BEGIN
+        -- Flujo PÚBLICO: todavía no se sabe quién es (el código aún no se ha
+        -- validado), pero la ip y el user agent que manda la ruta sí sirven.
+        -- El autor se declara más abajo, al resolver el usuario.
+        PERFORM auditoria.contexto(req);
+
         _email         := NULLIF(TRIM(req->>'email'), '');
         _recovery_code := NULLIF(TRIM(req->>'recovery_code'), '');
         _password_hash := NULLIF(TRIM(req->>'password_hash'), '');
@@ -125,6 +130,11 @@ AS $function$
         IF _recovery_id IS NULL THEN
             RETURN json_build_object('error', 'Sesión de recuperación inválida o expirada');
         END IF;
+
+        -- Ya se sabe DE QUIÉN es la cuenta: se declara como autor del cambio.
+        -- El contexto de arriba no traía usuario (el flujo es público) y un
+        -- nulo no pisa lo declarado, así que las trazas de red sobreviven.
+        PERFORM auditoria.contexto(_user_id);
 
         -- Actualizar contraseña en core.users
         UPDATE core.users

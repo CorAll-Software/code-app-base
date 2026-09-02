@@ -42,13 +42,14 @@ src/
 │   ├── session.ts              # Sesiones + refresh rotativo (core.user_sessions)
 │   ├── permissions.ts          # Caché de permisos con respaldo en BD
 │   ├── store.ts / redis.ts     # Caché en Redis (sesiones activas, permisos)
-│   ├── audit.helper.ts         # logAudit() → core.save_audit_log
+│   ├── auditoria.ts            # contextoAuditoria() + registrarEvento/Descarga
 │   ├── s3.ts / image.ts        # Storage S3/MinIO + conversión WebP
 │   ├── email/email-service.ts  # Nodemailer
 │   └── permissions.constants.ts# Diccionario de slugs (gemelo del frontend)
 └── modules/
-    └── core/          # auth, users, roles, permissions, notifications (+ auth.ws)
-                       # notifications.helper.ts → createNotification() (BD + push WS)
+    ├── core/          # auth, users, roles, permissions, notifications (+ auth.ws)
+    │                  # notifications.helper.ts → createNotification() (BD + push WS)
+    └── auditoria/     # auditoria.api.ts — consulta de la bitácora (solo GET)
 ```
 
 ## Cómo agregar un módulo

@@ -10,7 +10,7 @@ import {
     rotateSession,
 } from '@core/session';
 import { cacheUserPermissions } from '@core/permissions';
-import { logAudit, extractClientIp } from '@core/audit.helper';
+import { contextoAuditoria, registrarEvento, trazas } from '@core/auditoria';
 import { emailService } from '@core/email/email-service';
 import { getS3ObjectUrl } from '@core/s3';
 import { Elysia, t } from 'elysia';
@@ -76,12 +76,30 @@ export const AuthApi = new Elysia()
             return status(400, { message: credentialsResult.error })
         }
 
+        // Un intento fallido no llega a tocar ninguna fila, así que ningún
+        // trigger lo ve: se registra explícitamente. Es de los eventos más
+        // útiles de la bitácora — una ráfaga de LOGIN_FALLIDO contra la misma
+        // cuenta o desde la misma ip es lo que delata un ataque de fuerza bruta.
+        // El motivo va en el detalle (uso interno); la respuesta HTTP sigue
+        // siendo la misma para no revelar si el correo existe.
+        const loginFallido = (detalle: string, usuarioId?: number | null) => registrarEvento({
+            entidad: 'users',
+            operacion: 'LOGIN_FALLIDO',
+            usuarioId: usuarioId ?? null,
+            idRegistro: usuarioId != null ? String(usuarioId) : null,
+            detalle: `${detalle} · correo: ${email}`,
+            headers,
+            endpoint: `POST ${path}/login`,
+        })
+
         const credentials = credentialsResult.result
         if (!credentials?.id || !credentials?.password_hash) {
+            await loginFallido('No existe una cuenta activa con ese correo')
             return status(401, { message: 'Credenciales inválidas' })
         }
 
         if (credentials.enable === false) {
+            await loginFallido('Cuenta inactiva', credentials.id)
             return status(403, { message: 'Cuenta inactiva. Contacte al administrador.' })
         }
 
@@ -89,6 +107,7 @@ export const AuthApi = new Elysia()
         const isPasswordValid = Bun.password.verifySync(password, storedPassword)
 
         if (!isPasswordValid) {
+            await loginFallido('Contraseña incorrecta', credentials.id)
             return status(401, { message: 'Credenciales inválidas' })
         }
 
@@ -103,8 +122,9 @@ export const AuthApi = new Elysia()
         }
 
         const created = await createSession(user.id, {
-            ip: extractClientIp(headers),
+            ip: trazas(headers).ip ?? undefined,
             userAgent: headers?.['user-agent'],
+            endpoint: `POST ${path}/login`,
         })
         if ('error' in created) {
             return status(500, { message: created.error })
@@ -142,7 +162,7 @@ export const AuthApi = new Elysia()
         }
 
         const rotated = await rotateSession(refreshToken, {
-            ip: extractClientIp(headers),
+            ip: trazas(headers).ip ?? undefined,
             userAgent: headers?.['user-agent'],
         })
 
@@ -243,8 +263,7 @@ export const AuthApi = new Elysia()
             const existingUser = existingResult.result as any;
             const data = { ...existingUser, ...(body as any) };
             data.id = (user as any).id; // Force updating own profile
-            data.user_cr = (user as any).id;
-            data.token_cr = (user as any).sid;
+            Object.assign(data, contextoAuditoria(user, headers, `PUT ${path}/update-profile`));
 
             // Synchronize first_name/last_name/names
             const bodyAny = body as any;
@@ -269,16 +288,6 @@ export const AuthApi = new Elysia()
                 return { message: result.error };
             }
 
-            logAudit({
-                userId: (user as any).id,
-                module: 'ADMIN',
-                tableName: 'users',
-                recordId: (user as any).id,
-                action: 'UPDATE',
-                newData: body,
-                ipAddress: extractClientIp(headers),
-                sessionId: (user as any).sid
-            });
 
             return result.result;
         }, {
@@ -318,24 +327,13 @@ export const AuthApi = new Elysia()
             const result = await execProcedure('core.update_user_password', [{
                 id: (user as any).id,
                 password_hash,
-                user_cr: (user as any).id,
-                token_cr: (user as any).sid,
+                ...contextoAuditoria(user, headers, `PUT ${path}/update-password`),
             }]);
             if (result.error) {
                 set.status = 400;
                 return { message: result.error };
             }
 
-            logAudit({
-                userId: (user as any).id,
-                module: 'ADMIN',
-                tableName: 'users',
-                recordId: (user as any).id,
-                action: 'UPDATE',
-                newData: { password_updated: true },
-                ipAddress: extractClientIp(headers),
-                sessionId: (user as any).sid
-            });
 
             // 3. Cerrar el resto de dispositivos: la sesión actual sobrevive para
             //    que quien cambió la contraseña no se quede fuera.
@@ -377,15 +375,6 @@ export const AuthApi = new Elysia()
 
             notifySessionClose(sessionId);
 
-            logAudit({
-                userId: (user as any).id,
-                module: 'ADMIN',
-                tableName: 'user_sessions',
-                action: 'DELETE',
-                newData: { session_id: sessionId },
-                ipAddress: extractClientIp(headers),
-                sessionId: (user as any).sid
-            });
 
             return { message: 'Sesión cerrada' };
         }, {
@@ -401,15 +390,6 @@ export const AuthApi = new Elysia()
             });
             closed.forEach(notifySessionClose);
 
-            logAudit({
-                userId: (user as any).id,
-                module: 'ADMIN',
-                tableName: 'user_sessions',
-                action: 'DELETE',
-                newData: { closed_sessions: closed.length },
-                ipAddress: extractClientIp(headers),
-                sessionId: (user as any).sid
-            });
 
             return { message: 'Se cerraron las demás sesiones', closedSessions: closed.length };
         }, {
@@ -471,7 +451,12 @@ export const AuthApi = new Elysia()
         const result = await execProcedure('core.reset_password_with_code', [{
             email,
             recovery_code,
-            password_hash
+            password_hash,
+            // Flujo público: no hay sesión ni usuario todavía, pero las trazas
+            // de red sí sirven. El autor lo resuelve la propia función SQL al
+            // validar el código (ver core/password_recovery_module.sql).
+            endpoint: `POST ${path}/reset-password`,
+            ...trazas(headers),
         }]);
 
         if (result.error) {
@@ -485,15 +470,6 @@ export const AuthApi = new Elysia()
         const credentialsResult = await execProcedure('core.get_user_credentials', [{ email }]);
         const userId = credentialsResult.result?.id;
 
-        logAudit({
-            userId: userId ?? 0,
-            module: 'ADMIN',
-            tableName: 'users',
-            recordId: userId ?? 0,
-            action: 'UPDATE',
-            newData: { password_reset: true, email },
-            ipAddress: extractClientIp(headers)
-        });
 
         if (userId) {
             // Restablecer contraseña cierra TODAS las sesiones: quien la pidió

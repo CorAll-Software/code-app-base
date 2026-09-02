@@ -2,6 +2,7 @@ import { Elysia } from 'elysia';
 import { validateToken } from '@core/jwt';
 import { userHasAnyPermission } from '@core/permissions';
 import { PermisoSlug } from '@core/permisos.type';
+import { registrarEvento } from '@core/auditoria';
 
 /**
  * Plugin de autenticación y autorización.
@@ -32,7 +33,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
         // `null` = solo exige token válido (sin permiso específico).
         requirePermission(value: PermisoSlug | PermisoSlug[] | null) {
             return {
-                async beforeHandle({ user, status }) {
+                async beforeHandle({ user, status, headers, request, path }) {
                     // 1. Validar identidad base (Token válido)
                     if (user?.error) {
                         return status(401, { message: user.error });
@@ -50,6 +51,20 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
 
                     // 5. Bloqueo si no tiene el privilegio exacto
                     if (!hasAccess) {
+                        // Un intento denegado no toca ninguna fila, así que
+                        // ningún trigger lo ve. Es justo el evento que hay que
+                        // conservar: alguien con sesión válida pidiendo algo
+                        // que no le corresponde. Se registra ANTES de responder
+                        // para que no se pierda si el cliente corta.
+                        await registrarEvento({
+                            entidad: 'permissions',
+                            operacion: 'ACCESO_DENEGADO',
+                            usuarioId: user.id,
+                            sesionId: user.sid,
+                            detalle: `Permiso requerido: ${permissions.join(' o ')}`,
+                            headers,
+                            endpoint: `${request.method} ${path}`,
+                        });
                         return status(403, { message: 'No tienes los permisos necesarios para realizar esta acción' });
                     }
                 }

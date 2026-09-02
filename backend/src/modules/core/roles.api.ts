@@ -1,5 +1,5 @@
 import { execProcedure } from '@core/db/connection';
-import { logAudit, extractClientIp } from '@core/audit.helper';
+import { contextoAuditoria } from '@core/auditoria';
 import { Elysia } from 'elysia';
 import { authPlugin } from '@core/auth.guard';
 import { invalidateUsersPermissions, listUsersByRole } from '@core/permissions';
@@ -60,7 +60,7 @@ export const RolesApi = new Elysia()
         if (lengthError) {
             return status(400, { message: lengthError });
         }
-        const data = { ...bodyData, user_cr: (user as any).id, token_cr: (user as any).sid };
+        const data = { ...bodyData, ...contextoAuditoria(user, headers, `POST ${path}`) };
 
         const result = await execProcedure('core.save_role', [data]);
         if (result.error) {
@@ -69,16 +69,6 @@ export const RolesApi = new Elysia()
         // Un rol recién creado aún no tiene miembros, pero el alta puede venir
         // con permisos ya asignados si se reactiva un rol existente.
         await propagarCambioDeRol(result.result?.id);
-        logAudit({
-            userId: (user as any).id,
-            module: 'ADMIN',
-            tableName: 'roles',
-            recordId: result.result?.id,
-            action: 'INSERT',
-            newData: { ...data, permissions: data.permissions_ids },
-            ipAddress: extractClientIp(headers),
-            sessionId: (user as any).sid
-        });
         return result.result;
     }, {
         requirePermission: PERMISSIONS.ROLES.MANAGE
@@ -89,7 +79,7 @@ export const RolesApi = new Elysia()
         if (lengthError) {
             return status(400, { message: lengthError });
         }
-        const data = { ...bodyData, user_cr: (user as any).id, token_cr: (user as any).sid };
+        const data = { ...bodyData, ...contextoAuditoria(user, headers, `PUT ${path}`) };
 
         const result = await execProcedure('core.save_role', [data]);
         if (result.error) {
@@ -98,22 +88,6 @@ export const RolesApi = new Elysia()
 
         await propagarCambioDeRol(data.id);
 
-        // Datos para auditoría con mapeo de permissions
-        const auditNewData = {
-            ...data,
-            permissions: data.permissions_ids
-        };
-
-        logAudit({
-            userId: (user as any).id,
-            module: 'ADMIN',
-            tableName: 'roles',
-            recordId: data.id,
-            action: data.status === false ? 'DELETE' : 'UPDATE',
-            newData: auditNewData,
-            ipAddress: extractClientIp(headers),
-            sessionId: (user as any).sid
-        });
         return result.result;
     }, {
         requirePermission: PERMISSIONS.ROLES.MANAGE

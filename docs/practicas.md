@@ -38,8 +38,11 @@ Detalle completo en [`../postgres/README.md`](../postgres/README.md). Lo esencia
   `get_<entidades>`, `save_<entidad>` (UPSERT con COALESCE), `delete_<entidad>`
   (soft), `get_<entidad>_by_id`. Validaciones con `RAISE EXCEPTION` en español
   (el mensaje llega tal cual al usuario).
-- Auditoría transversal en `core.audit_log` vía `core.save_audit_log(req)`;
-  no crear bitácoras por módulo.
+- Auditoría transversal en `auditoria.log` (inmutable), poblada por un **único
+  trigger genérico**; no crear bitácoras por módulo. Toda función que escriba
+  empieza con `PERFORM auditoria.contexto(req);` y cada esquema nuevo se activa
+  con `SELECT auditoria.activar_esquema('<esquema>');`. Ver
+  [`../postgres/auditoria/README.md`](../postgres/auditoria/README.md).
 - Cada esquema mantiene su `.sql` + `.dbml` y se propaga al agregado raíz
   `postgres/tables.sql` / `tables.dbml`.
 
@@ -98,9 +101,17 @@ Reglas:
 - **Convención REST**: `GET /x` lista, `GET /x/:id` detalle, `POST /x` crea,
   `PUT /x` actualiza (id en el body), `DELETE /x/:id` soft-delete.
   UPSERT: el mismo `save_*` maneja insert/update según `id`.
-- **Auditoría**: en operaciones críticas llamar `logAudit(...)` de
-  `core/audit.helper.ts` (fire-and-forget, no bloquea la respuesta), pasando
-  `sessionId: (user as any).sid` para que la bitácora guarde la sesión de origen.
+- **Auditoría**: **no se registra a mano.** Las escrituras las audita el trigger
+  genérico de la base; el endpoint solo aporta lo que la base no puede saber —
+  quién, desde qué sesión y por qué ruta — mezclando el contexto en el payload:
+  ```ts
+  const data = { ...body, ...contextoAuditoria(user, headers, `PUT ${path}`) }
+  ```
+  Eso ya incluye `user_cr`/`token_cr`, así que sustituye a las dos líneas de
+  siempre. Para lo que ningún trigger ve (descargas, lecturas sensibles) está
+  `registrarEvento()` / `registrarDescarga()` de `core/auditoria.ts`, que **se
+  espera** con `await`: si no se pudo registrar una descarga, no se entrega el
+  archivo.
 - **Archivos**: subir a S3 con `core/s3.ts` (`buildKeyObject` + `uploadToS3Private`),
   guardar solo la key en BD y devolver URLs firmadas (`getS3ObjectUrl`).
   Imágenes: convertir a WebP con `core/image.ts` cuando aplique.
@@ -396,18 +407,21 @@ frontend App.tsx (handler WS type === 'notification')
 
 ## 6. Checklist al agregar un módulo
 
-1. **BD**: `postgres/<modulo>/` (DDL + dbml + funciones) → propagar a
-   `tables.sql`/`tables.dbml` → `ALTER TYPE core.enum_module ADD VALUE 'X'` →
-   permisos en `seed-permissions.sql` → actualizar `postgres/README.md`.
+1. **BD**: `postgres/<modulo>/` (DDL + dbml + funciones, cada una abriendo con
+   `PERFORM auditoria.contexto(req);`) → propagar a `tables.sql`/`tables.dbml` →
+   permisos en `seed-permissions.sql` → **activar la auditoría del esquema**
+   (`SELECT auditoria.activar_esquema('<modulo>');`) → actualizar
+   `postgres/README.md`.
 2. **Backend**: `modules/<modulo>/<modulo>.api.ts` → slugs en
-   `core/permissions.constants.ts` → registrar en `router.ts` → sincronizar
-   `AuditModule` en `core/audit.helper.ts` → rutas S3 en `config.ts` si aplica.
+   `core/permissions.constants.ts` → registrar en `router.ts` → rutas S3 en
+   `config.ts` si aplica.
 3. **Frontend**: slugs gemelos → `services/` → `pages/` → ruta en
-   `router.config.tsx` → menú en `menu.config.tsx` → sincronizar `AuditModule`
-   en `modules/configuracion/services/audit.service.ts` → listas de enums en
-   `core/listas.tsx`.
+   `router.config.tsx` → menú en `menu.config.tsx` → etiquetas de las entidades
+   nuevas en `modules/auditoria/types.ts` (`ENTIDADES_ETIQUETA`) → listas de
+   enums en `core/listas.tsx`.
 4. **Verificar**: `bun run tsc` en backend y `bun run build` en frontend;
-   probar el flujo con un rol SIN el permiso nuevo (debe ocultarse/403).
+   probar el flujo con un rol SIN el permiso nuevo (debe ocultarse/403);
+   comprobar en *Auditoría → Cobertura* que las tablas nuevas salen auditadas.
 5. **Endpoints públicos** (sin token de sesión): protegerlos con
    `requireCaptcha: true` + `...captchaBodyField` y montar `<CapCaptcha>` en el
    formulario correspondiente.

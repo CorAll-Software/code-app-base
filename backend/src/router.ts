@@ -9,6 +9,7 @@ import { UsersApi } from "@modules/core/users.api";
 import { RolesApi } from "@modules/core/roles.api";
 import { PermissionsApi } from "@modules/core/permissions.api";
 import { NotificationsApi } from "@modules/core/notifications.api";
+import { AuditoriaApi } from "@modules/auditoria/auditoria.api";
 
 // ── Módulos de negocio ──────────────────────────────────────────────────────
 // Registra aquí los módulos del proyecto. Ejemplo:
@@ -46,7 +47,8 @@ export const routerApi = new Elysia()
   .use(UsersApi)
   .use(RolesApi)
   .use(PermissionsApi)
-  .use(NotificationsApi);
+  .use(NotificationsApi)
+  .use(AuditoriaApi);
 
 // Módulos de negocio
 // .use(ClientesApi)

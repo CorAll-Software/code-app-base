@@ -44,10 +44,26 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
 ```bash
 createdb mi_proyecto
 psql -d mi_proyecto -f postgres/tables.sql
+
+# Auditoría ANTES que las funciones del núcleo: cada save_*/delete_* abre con
+# `PERFORM auditoria.contexto(req)`, así que ese esquema debe existir ya.
+psql -d mi_proyecto -f postgres/auditoria/install.sql
+
 psql -d mi_proyecto -f postgres/core/seed-permissions.sql
 # Todas las funciones del núcleo:
 # (bash)  for f in $(find postgres/core -name '*.sql'); do psql -d mi_proyecto -f $f; done
 # (pwsh)  Get-ChildItem postgres/core -Recurse -Filter *.sql | % { psql -d mi_proyecto -f $_.FullName }
+
+# Reejecutar al final (es idempotente): activa los triggers de las tablas nuevas
+# y reporta qué funciones aún no declaran su autor.
+psql -d mi_proyecto -f postgres/auditoria/install.sql
+```
+
+- [ ] Comprobar la cobertura: ninguna tabla del proyecto debe quedar en `false`
+      salvo las excluidas a propósito (ver `postgres/auditoria/README.md`).
+
+```sql
+SELECT jsonb_pretty(auditoria.get_cobertura()::jsonb);
 ```
 
 - [ ] Crear el rol `Administrador` y el primer usuario:

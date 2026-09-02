@@ -34,9 +34,10 @@ app-base/
 │   └── src/
 │       ├── config.ts       # Variables de entorno tipadas
 │       ├── router.ts       # Registro de rutas (núcleo + módulos)
-│       ├── core/           # db, jwt, auth.guard, store(redis), s3, email, audit
+│       ├── core/           # db, jwt, auth.guard, store(redis), s3, email, auditoria
 │       └── modules/
-│           └── core/       # auth, users, roles, permissions (+ WebSocket)
+│           ├── core/       # auth, users, roles, permissions (+ WebSocket)
+│           └── auditoria/  # consulta de la bitácora (solo GET)
 ├── frontend/               # SPA React
 │   └── src/
 │       ├── core/           # http, ws, permisos, colores, hooks, utilidades
@@ -46,10 +47,12 @@ app-base/
 │       ├── menu.config.tsx / router.config.tsx
 │       └── modules/
 │           ├── equipo/         # Gestión de usuarios
-│           └── configuracion/  # Roles y permisos + auditoría
+│           ├── configuracion/  # Roles y permisos
+│           └── auditoria/      # Visor de la bitácora
 ├── postgres/
 │   ├── tables.sql          # Agregado: construye toda la BD
-│   └── core/               # DDL + funciones del núcleo + seed de permisos
+│   ├── core/               # DDL + funciones del núcleo + seed de permisos
+│   └── auditoria/          # Bitácora inmutable + trigger genérico + install.sql
 └── docs/                   # Prácticas, checklist y prompts
 ```
 
@@ -62,7 +65,10 @@ app-base/
 - **Recuperación de contraseña** por correo (código de 6 dígitos).
 - **Gestión de usuarios** (CRUD, foto de perfil vía S3, activar/desactivar, roles).
 - **Roles y permisos**: árbol de permisos autogenerado desde los slugs, cache RBAC en Redis.
-- **Auditoría** transversal (`core.audit_log`) con visor en el frontend.
+- **Auditoría**: bitácora inmutable (`auditoria.log`) poblada por un único
+  trigger genérico — una fila por acción, con el diff de lo que cambió, los
+  secretos enmascarados y las trazas de red. Visor con filtros, ficha de evento
+  y estado de cobertura en el frontend.
 - **Notificaciones** en tiempo real (campana + store Zustand).
 - Componentes UI estándar: `DataTable`, `StandardPageLayout`, `StandardModalForm`,
   `StandardFilters`, avatares.
@@ -76,14 +82,24 @@ Requiere [Bun](https://bun.sh), PostgreSQL 18+ y Redis (o Valkey).
 ```bash
 createdb app_base
 psql -d app_base -f postgres/tables.sql
+
+# Auditoría ANTES que las funciones: cada `save_*`/`delete_*` del núcleo abre con
+# `PERFORM auditoria.contexto(req)`, así que ese esquema tiene que existir ya.
+psql -d app_base -f postgres/auditoria/install.sql
+
 psql -d app_base -f postgres/core/seed-permissions.sql
 # Funciones del núcleo:
-for f in postgres/core/*.sql postgres/core/audit/*.sql postgres/core/notifications/*.sql; do
+for f in postgres/core/*.sql postgres/core/notifications/*.sql postgres/core/sessions/*.sql; do
   psql -d app_base -f "$f"
 done
 ```
 
 > En Windows (PowerShell): `Get-ChildItem postgres/core -Recurse -Filter *.sql | ForEach-Object { psql -d app_base -f $_.FullName }`
+>
+> `install.sql` es **reejecutable**. Vuelve a correrlo al final —y cada vez que
+> agregues un esquema— para activar los triggers de las tablas nuevas y ver su
+> informe: qué funciones aún no declaran su autor y qué tablas quedan sin
+> auditar. Compruébalo también con `auditoria.get_cobertura()`.
 
 ### 2. Backend
 

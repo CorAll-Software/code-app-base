@@ -59,13 +59,24 @@ Crea índices para FKs y filtros frecuentes:
 3) AUDITORÍA (a nivel de BD)
 ═══════════════════════════════════════════════════════════════════════════════
 - NO crear bitácora propia por esquema: la auditoría es transversal en
-  `core.audit_log` (inmutable), poblada con `core.save_audit_log(req json)`.
-- Cada operación crítica (alta/baja/cambio) se registra ahí con: user_id, module
-  (valor de `core.enum_module` — agrégalo con ALTER TYPE si no existe),
-  table_name, record_id, action (INSERT/UPDATE/DELETE), old_data/new_data (JSONB)
-  e ip_address.
+  `auditoria.log` (inmutable: solo admite INSERT).
+- NO escribir código para registrar cambios: los INSERT/UPDATE/DELETE los audita
+  un ÚNICO trigger genérico. Basta con activarlo al terminar el esquema:
+      SELECT auditoria.activar_esquema('{{ESQUEMA}}');
+  Sin esa línea las tablas del módulo no aparecerán NUNCA en la bitácora, y esa
+  ausencia se lee igual que "no pasó nada".
+- Toda función que escriba declara su autor en la PRIMERA línea del cuerpo:
+      PERFORM auditoria.contexto(req);
+  Reconoce los nombres que ya usa el sistema (user_cr, token_cr…) y las trazas
+  HTTP que mande la ruta. Si se omite, la auditoría sigue funcionando cayendo en
+  user_cr/user_up de la propia fila; solo se pierde precisión.
+- Lecturas y descargas: PostgreSQL no dispara triggers en SELECT. Si el módulo
+  sirve accesos a información sensible o entrega archivos, regístralos con
+      PERFORM auditoria.registrar_evento('<entidad>', 'LECTURA', _id::TEXT);
+  Solo accesos reales, NO cada listado paginado.
 - A nivel de fila, la trazabilidad mínima la dan SIEMPRE las columnas de auditoría
   (user_cr/date_cr al insertar; user_up/date_up al actualizar).
+- Detalle completo: postgres/auditoria/README.md
 
 ═══════════════════════════════════════════════════════════════════════════════
 4) REGLAS DEL .dbml (para que renderice solo en dbdiagram.io)

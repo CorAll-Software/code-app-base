@@ -45,6 +45,18 @@ BEGIN
         v_now
     );
 
+    -- INICIO DE SESIÓN. `core.user_sessions` está excluida del trigger de
+    -- auditoría porque la rotación del refresh token escribe cada pocos minutos
+    -- por usuario activo y ahogaría la bitácora (ver auditoria/instalacion.sql).
+    -- Pero abrir sesión SÍ es una acción, así que se registra explícitamente.
+    -- El contexto se declara aquí mismo: en el login todavía no hay `sid`, y la
+    -- ip y el user agent ya vienen en el propio `req`.
+    PERFORM auditoria.contexto(v_user_id, v_id, req->>'ip_address', req->>'user_agent', req->>'endpoint');
+    PERFORM auditoria.registrar_evento(
+        'user_sessions', 'LOGIN', v_id::TEXT, v_user_id, NULL,
+        'Inicio de sesión desde ' || COALESCE(req->>'device', 'dispositivo desconocido')
+    );
+
     SELECT json_build_object(
         'id', id,
         'user_id', user_id,
@@ -99,6 +111,18 @@ BEGIN
         UPDATE core.user_sessions
         SET revoked_at = v_now, revoked_reason = 'REUSE_DETECTED'
         WHERE id = v_id;
+
+        -- El evento de seguridad más importante de esta tabla: alguien presentó
+        -- una credencial ya rotada, es decir, hay dos clientes con la misma
+        -- cadena. Se registra como ACCESO_DENEGADO porque eso es lo que pasó —
+        -- se rechazó una credencial— y así aparece junto al resto de intentos
+        -- fallidos al filtrar la bitácora.
+        PERFORM auditoria.contexto(v_session.user_id, v_id, req->>'ip_address', req->>'user_agent');
+        PERFORM auditoria.registrar_evento(
+            'user_sessions', 'ACCESO_DENEGADO', v_id::TEXT, v_session.user_id, NULL,
+            'Refresh token ya rotado (posible robo): la sesión se cerró por seguridad'
+        );
+
         RETURN json_build_object('error', 'Sesión cerrada por seguridad', 'reuse', TRUE);
     END IF;
 
@@ -208,6 +232,23 @@ BEGIN
         RETURN json_build_object('error', 'La sesión no existe o ya fue cerrada');
     END IF;
 
+    -- CIERRE DE SESIÓN. Se registra como BAJA porque eso es: el recurso sesión
+    -- deja de estar vigente sin desaparecer de la tabla, igual que un
+    -- `status = FALSE` en cualquier otra entidad. El motivo (LOGOUT, MANUAL,
+    -- ADMIN, PASSWORD_CHANGE) va en el detalle: es lo que distingue "el usuario
+    -- cerró sesión" de "un administrador se la cerró".
+    PERFORM auditoria.contexto(
+        NULLIF(req->>'actor_user', '')::INTEGER,
+        NULLIF(req->>'actor_session', '')::UUID
+    );
+    PERFORM auditoria.registrar_evento(
+        'user_sessions', 'BAJA', v_revoked::TEXT,
+        -- Sin actor conocido (cierre automático) la acción es del sistema
+        -- sobre el dueño de la sesión: se atribuye a él antes que a nadie.
+        COALESCE(NULLIF(req->>'actor_user', '')::INTEGER, v_user_id), NULL,
+        'Sesión cerrada · motivo: ' || COALESCE(req->>'reason', 'MANUAL')
+    );
+
     RETURN json_build_object('id', v_revoked);
 END
 $function$;
@@ -239,6 +280,21 @@ BEGIN
         RETURNING id
     )
     SELECT COALESCE(json_agg(id), '[]'::json) INTO v_ids FROM revoked;
+
+    -- Una fila de bitácora POR SESIÓN cerrada, no una por lote: el historial de
+    -- cada dispositivo tiene que poder reconstruirse por separado, y todas
+    -- comparten `txid`, así que en la pantalla se siguen leyendo como un mismo
+    -- cierre masivo.
+    PERFORM auditoria.contexto(
+        NULLIF(req->>'actor_user', '')::INTEGER,
+        NULLIF(req->>'actor_session', '')::UUID
+    );
+    PERFORM auditoria.registrar_evento(
+        'user_sessions', 'BAJA', s.value #>> '{}',
+        COALESCE(NULLIF(req->>'actor_user', '')::INTEGER, v_user_id), NULL,
+        'Sesión cerrada en lote · motivo: ' || COALESCE(req->>'reason', 'MANUAL')
+    )
+    FROM json_array_elements(v_ids) AS s;
 
     RETURN json_build_object('ids', v_ids);
 END

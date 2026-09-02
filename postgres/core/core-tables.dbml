@@ -12,17 +12,6 @@ Project app_base_core {
 }
 
 // ── ENUMs ────────────────────────────────────────────────────────────────────
-Enum core.enum_audit_action {
-  INSERT
-  UPDATE
-  DELETE
-}
-
-// Módulos del sistema. Agrega un valor por cada módulo de negocio.
-Enum core.enum_module {
-  CORE  [note: 'Login, usuarios, roles, permisos y auditoría']
-  ADMIN [note: 'Administración / configuración general']
-}
 
 // Motivo por el que una sesión dejó de estar activa.
 Enum core.enum_session_revoke_reason {
@@ -120,25 +109,8 @@ Table core.user_roles {
   }
 }
 
-Table core.audit_log {
-  id         serial                 [pk]
-  user_id    integer                [ref: > core.users.id]
-  module     core.enum_module
-  table_name varchar(100)
-  record_id  integer
-  action     core.enum_audit_action
-  old_data   jsonb
-  new_data   jsonb
-  ip_address varchar(45)
-  status     boolean                [default: true]
-  user_cr    integer
-  token_cr   uuid
-  date_cr    bigint                 [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
-  user_up    integer
-  token_up   uuid
-  date_up    bigint
-  Note: 'Bitácora de auditoría inmutable (RNF-04, RNF-05).'
-}
+// La bitácora de auditoría NO vive en core: es un esquema transversal propio.
+// Ver postgres/auditoria/auditoria-tables.dbml.
 
 Table core.notifications {
   id         uuid         [pk, default: `uuidv7()`]
@@ -204,7 +176,6 @@ TableGroup core {
   core.roles
   core.role_permissions
   core.user_roles
-  core.audit_log
   core.notifications
   core.password_recovery
   core.user_sessions

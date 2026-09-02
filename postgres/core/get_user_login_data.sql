@@ -19,6 +19,12 @@ BEGIN
 	END IF;
 
 	IF _touch_login THEN
+		-- Quien inicia sesión es el propio usuario: se declara como autor para
+		-- que el trigger no atribuya la acción al último que editó su ficha.
+		-- (El UPDATE en sí no deja fila: `last_login` está entre las columnas
+		-- ignoradas, y el inicio de sesión ya se registra como evento LOGIN.)
+		PERFORM auditoria.contexto(_user_id);
+
 		UPDATE core.users
 		SET last_login = _now
 		WHERE id = _user_id;
