@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { configServer } from '@/config';
 import { execProcedure } from './db/connection';
 import { userStore } from './store';

@@ -1,8 +1,8 @@
 import { Modal, Form, Tabs, Flex, message, theme, Steps, Space, Grid, Drawer, Button, Divider, Select, Typography, Col, Row } from 'antd';
 import { UserOutlined, SettingOutlined, CheckOutlined, ArrowRightOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { UserData, usersService } from '../services/users.service';
-import { Role } from '@src/core/types';
+import { type UserData, usersService } from '../services/users.service';
+import type { Role } from '@src/core/types';
 import { capitalizeWords } from '@src/core/parse';
 
 import { PersonalDataSection } from './user-form/PersonalDataSection';

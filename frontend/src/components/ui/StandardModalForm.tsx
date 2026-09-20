@@ -1,5 +1,5 @@
 import { Modal, Drawer, Button, Grid } from 'antd';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { CheckOutlined } from '@ant-design/icons';
 
 export interface StandardModalFormProps {

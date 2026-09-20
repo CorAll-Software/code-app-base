@@ -8,14 +8,14 @@ import {
 } from "@src/components/ui/StandardFilters";
 import { StandardPageLayout } from "@src/components/ui/StandardPageLayout";
 import { Alert, Button, Grid, Modal, Space, Table, Tag, Typography } from "antd";
-import dayjs, { Dayjs } from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DetalleEventoDrawer } from "../components/DetalleEventoDrawer";
 import { auditoriaService } from "../services/auditoria.service";
 import {
-  CoberturaAuditoria,
-  EventoAuditoria,
-  FiltrosDisponibles,
+  type CoberturaAuditoria,
+  type EventoAuditoria,
+  type FiltrosDisponibles,
   OPERACIONES_MAP,
   etiquetaEntidad,
 } from "../types";

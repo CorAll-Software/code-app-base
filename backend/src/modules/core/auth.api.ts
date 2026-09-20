@@ -360,7 +360,7 @@ export const AuthApi = new Elysia()
         }, {
             requirePermission: null
         })
-        .delete(`/sessions/:id`, async ({ params, set, user, headers }) => {
+        .delete(`/sessions/:id`, async ({ params, set, user }) => {
             const sessionId = params.id;
 
             const revoked = await revokeSession(sessionId, (user as any).id, {
@@ -381,7 +381,7 @@ export const AuthApi = new Elysia()
             requirePermission: null
         })
         /** Cierra todas las sesiones menos la actual. */
-        .delete(`/sessions`, async ({ user, headers }) => {
+        .delete(`/sessions`, async ({ user }) => {
             const closed = await revokeUserSessions((user as any).id, {
                 reason: 'MANUAL',
                 exceptId: (user as any).sid,

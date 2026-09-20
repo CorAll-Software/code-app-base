@@ -1,4 +1,5 @@
 import { Avatar, Button, Modal, Spin, theme } from 'antd';
+import { clickable } from '@core/utils/a11y';
 import { CameraOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
 import { useRef, useState } from 'react';
 import { getInitials } from '@src/core/parse';
@@ -120,7 +121,7 @@ export const AvatarTrigger = ({
     token: { colorBorderSecondary: string; colorPrimary: string; boxShadow: string };
     onClick: () => void;
 }) => (
-    <div style={{ position: 'relative', cursor: disabled ? 'default' : 'pointer' }} onClick={onClick}>
+    <div style={{ position: 'relative', cursor: disabled ? 'default' : 'pointer' }} {...clickable(onClick, disabled)}>
         <Spin spinning={uploading}>
             <FotoAvatar displayUrl={displayUrl} size={size} fullName={fullName} colorBorderSecondary={token.colorBorderSecondary} />
             {!disabled && !pendingFile && (

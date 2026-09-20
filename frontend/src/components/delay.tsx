@@ -1,7 +1,8 @@
 // Example
 
 import { Spin } from 'antd';
-import React, { useState, useEffect } from 'react';
+import type React from 'react';
+import { useState, useEffect } from 'react';
 
 type Props = {
     children: React.ReactNode;

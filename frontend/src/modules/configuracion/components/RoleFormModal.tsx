@@ -1,13 +1,13 @@
 import { CheckOutlined, KeyOutlined, SafetyCertificateOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
 import { Badge, Button, Checkbox, Drawer, Empty, Form, Grid, Input, Modal, Space, Tabs, Tree, Typography, message, theme } from "antd";
-import { Key, useEffect, useMemo, useState } from "react";
+import { type Key, useEffect, useMemo, useState } from "react";
 import {
-  PermissionTreeNode,
+  type PermissionTreeNode,
   buildPermissionTree,
   collectGroupKeys,
   filterPermissions,
 } from "../services/modules.config";
-import { Permission, Role } from "../services/roles.service";
+import type { Permission, Role } from "../services/roles.service";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;

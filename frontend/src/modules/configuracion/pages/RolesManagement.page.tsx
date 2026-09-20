@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 
 const { useBreakpoint } = Grid;
-import { rolesService, Role, Permission } from '../services/roles.service';
+import { rolesService, type Role, type Permission } from '../services/roles.service';
 import { RoleFormModal } from '../components/RoleFormModal';
 import { PermissionsDrawer } from '../components/PermissionsDrawer';
 import { StandardPageLayout } from '@src/components/ui/StandardPageLayout';

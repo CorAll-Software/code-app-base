@@ -1,4 +1,4 @@
-export { }; // Hace del fichero un módulo, requisito del `await` de nivel superior.
+
 
 import pkg from './package.json';
 

@@ -1,4 +1,4 @@
-import { Table, TableProps, Grid, Button, Typography } from "antd";
+import { Table, type TableProps, Grid, Button, Typography } from "antd";
 import { useRef } from "react";
 
 const { Text } = Typography;

@@ -10,7 +10,7 @@ import {
 } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
-import { UserData, usersService } from "../services/users.service";
+import { type UserData, usersService } from "../services/users.service";
 import { useAuth } from "@src/providers/auth-provider";
 import { PERMISSIONS } from "@src/core/permissions.constants";
 import { capitalizeWords, getInitials } from "@src/core/parse";

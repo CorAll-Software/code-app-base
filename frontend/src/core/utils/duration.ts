@@ -5,7 +5,7 @@ const HOURS_PER_DAY = 24
  * Returns undefined if the string is empty or can't be parsed.
  */
 export const parseDuration = (str?: string | null): number | undefined => {
-    if (!str || !str.trim()) return undefined
+    if (!str?.trim()) return undefined
 
     const d = str.match(/(\d+(?:\.\d+)?)\s*d/i)
     const h = str.match(/(\d+(?:\.\d+)?)\s*h/i)
@@ -58,7 +58,7 @@ export const formatDuration = (hours?: number | null): string => {
  * Accepts strings like "2d 4h 30m", "1h", "45m", or empty.
  */
 export const durationValidator = (_rule: unknown, value: string) => {
-    if (!value || !value.trim()) return Promise.resolve()
+    if (!value?.trim()) return Promise.resolve()
     const result = parseDuration(value)
     if (result === undefined) {
         return Promise.reject('Formato inválido. Usa: "2d 4h 30m", "1h 30m", "45m"')

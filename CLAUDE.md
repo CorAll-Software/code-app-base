@@ -13,6 +13,8 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
   · al cambiar dependencias: `bun run lockfile` (regenera `backend/bun.lock`,
   el que usa Docker; el de la raíz no se alcanza desde ese contexto de build)
 - Frontend: `cd frontend && bun run dev` (:5004) · build+typecheck: `bun run build`
+- Lint: `bun run lint` en la raíz (Biome, un solo `biome.json` para los dos
+  workspaces) · `bun run lint:fix` aplica lo autocorregible.
 - BD: `psql -d app_base -f postgres/tables.sql` → `postgres/auditoria/install.sql`
   (reejecutable; va antes porque las funciones del núcleo lo invocan) →
   seeds/funciones en `postgres/core/`

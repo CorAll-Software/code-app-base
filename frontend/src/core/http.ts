@@ -74,7 +74,7 @@ const doRefresh = async (): Promise<boolean> => {
   if (!refreshToken) return false;
 
   try {
-    const res = await fetch(api + "auth/refresh", {
+    const res = await fetch(`${api}auth/refresh`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -117,7 +117,7 @@ const buildUrl = (url: string, params?: any) => {
       .forEach((key) => {
         const value = params[key];
         if (Array.isArray(value)) {
-          value.forEach((v) => uri.searchParams.append(key, String(v)));
+          value.forEach((v) => { uri.searchParams.append(key, String(v)); });
         } else {
           uri.searchParams.append(key, value);
         }
@@ -141,7 +141,7 @@ const request = async <T>(config: RequestConfig): Promise<T> => {
 
   const send = (token: string) => {
     const headers: Record<string, string> = {
-      Authorization: "Bearer " + token,
+      Authorization: `Bearer ${token}`,
       ...(options?.headers || {}),
     };
     if (!formData && !paramsInQuery) headers["Content-Type"] = "application/json";

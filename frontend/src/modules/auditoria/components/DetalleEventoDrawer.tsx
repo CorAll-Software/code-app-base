@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import { useState } from "react";
 import { auditoriaService } from "../services/auditoria.service";
 import {
-  EventoAuditoria,
+  type EventoAuditoria,
   OPERACIONES_MAP,
   etiquetaEntidad,
   formatearValor,

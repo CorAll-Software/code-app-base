@@ -1,4 +1,5 @@
 import { LogoutOutlined, MenuOutlined, CloseOutlined, UserOutlined } from '@ant-design/icons';
+import { clickable } from './core/utils/a11y';
 import { Avatar, Button, Drawer, Grid, Layout, Menu, Tooltip, Typography, theme } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -93,7 +94,7 @@ function App() {
           if (typeof msg === 'string' && msg.startsWith('{')) {
             try {
               data = JSON.parse(msg);
-            } catch (err) {}
+            } catch (_err) {}
           }
 
           if (data && typeof data === 'object') {
@@ -186,7 +187,7 @@ function App() {
     if (authContext.loading) { return <LoadingPage /> }
 
     if (!authContext.isAuthenticated()) {
-      return <><PublicRoutes /></>;
+      return <PublicRoutes />;
     }
 
     const filterMenuItem = (item: any): any | null => {
@@ -416,10 +417,10 @@ function App() {
                   cursor: 'pointer',
                   borderBottom: `1px solid ${token.colorBorderSecondary}`,
                 }}
-                onClick={() => {
+                {...clickable(() => {
                   useProfileDrawerStore.getState().openDrawer();
                   setMobileMenuOpen(false);
-                }}
+                })}
               >
                 <Avatar
                   size={40}

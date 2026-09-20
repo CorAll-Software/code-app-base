@@ -1,7 +1,7 @@
 import { verifyToken } from "@core/jwt";
 import { isSessionActive } from "@core/session";
 import { Elysia } from "elysia";
-import { ElysiaWS } from "elysia/ws";
+import type { ElysiaWS } from "elysia/ws";
 
 /**
  * Sockets abiertos, indexados por `wsid` (lo genera el cliente, ver

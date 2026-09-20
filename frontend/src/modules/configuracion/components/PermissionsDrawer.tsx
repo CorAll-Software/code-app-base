@@ -21,9 +21,9 @@ import {
   RightOutlined,
 } from "@ant-design/icons";
 import { useState, useMemo, useEffect } from "react";
-import { Permission, rolesService, Role } from "../services/roles.service";
+import { type Permission, rolesService, type Role } from "../services/roles.service";
 import {
-  PermissionTreeNode,
+  type PermissionTreeNode,
   buildPermissionTree,
   collectGroupKeys,
   collectLeafKeys,

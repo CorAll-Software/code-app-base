@@ -1,12 +1,12 @@
 import { Result } from "antd";
-import { ReactNode } from "react";
-import { RouteObject } from "react-router-dom";
-import { ComponentType } from "react";
+import type { ReactNode } from "react";
+import type { RouteObject } from "react-router-dom";
+import type { ComponentType } from "react";
 import { NotFoundPage } from "./layouts/404.page";
 import { Home } from "./layouts/home.page";
 import { ProfilePage } from "./layouts/profile.page";
 import { PermissionRoute } from "./layouts/permission-route";
-import { PERMISSIONS, PermisoSlug } from "./core/permissions.constants";
+import { PERMISSIONS, type PermisoSlug } from "./core/permissions.constants";
 
 type LazyLoad = () => Promise<{ default: ComponentType }>;
 

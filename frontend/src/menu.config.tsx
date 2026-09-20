@@ -4,7 +4,7 @@ import {
   SettingOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import { PERMISSIONS, PermisoSlug } from "./core/permissions.constants";
+import { PERMISSIONS, type PermisoSlug } from "./core/permissions.constants";
 
 interface MenuItem {
   label: React.ReactNode;

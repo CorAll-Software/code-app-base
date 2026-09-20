@@ -1,7 +1,7 @@
-import { UserSession } from '@src/core/types';
+import type { UserSession } from '@src/core/types';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useFeedback } from './message.provider';
-import { PermisoSlug, SYSTEM_ROLES } from '@src/core/permissions.constants';
+import { type PermisoSlug, SYSTEM_ROLES } from '@src/core/permissions.constants';
 import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
 import { POST, SESSION_REFRESHED_EVENT, clearSession, getRefreshToken, refreshSession } from '@src/core/http';
 import { identificarUsuario } from '@src/core/sentry';
@@ -60,7 +60,7 @@ export const AuthProvider = ({ children }) => {
                 // de renovación/logout desde el propio cierre de sesión. Se manda
                 // también el refresh: si el access token ya venció, es lo único
                 // con lo que el backend puede revocar la sesión.
-                fetch(window._routeApi + 'auth/logout', {
+                fetch(`${window._routeApi}auth/logout`, {
                     method: 'POST',
                     credentials: 'include',
                     headers: {

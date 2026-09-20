@@ -3,7 +3,7 @@ import pkg from "../package.json";
 
 // Cap: normalizamos el endpoint para garantizar la barra final que exige el widget.
 const rawCapEndpoint = (process.env.CAP_API_ENDPOINT || "").trim();
-const capApiEndpoint = rawCapEndpoint ? rawCapEndpoint.replace(/\/+$/, "") + "/" : "";
+const capApiEndpoint = rawCapEndpoint ? `${rawCapEndpoint.replace(/\/+$/, "")}/` : "";
 const capSecretKey = (process.env.CAP_SECRET_KEY || "").trim();
 
 /**
@@ -33,28 +33,28 @@ export const configServer = {
   version,
   team: process.env.TEAM_NAME || "Mi Empresa",
   timeZone: process.env.TZ || "America/Lima",
-  port: parseInt(process.env.PORT || "3000"),
+  port: parseInt(process.env.PORT || "3000", 10),
   domain: process.env.DOMAIN_FRONTEND || "http://localhost:5004",
   auth: {
     secret: process.env.JWT_SECRET || "default_secret",
     // Access token (JWT): vida corta, se renueva con el refresh token.
-    accessExpiresIn: process.env.JWT_ACCESS_EXPIRE_IN ? parseInt(process.env.JWT_ACCESS_EXPIRE_IN) : 15 * 60, // 15 min por defecto
+    accessExpiresIn: process.env.JWT_ACCESS_EXPIRE_IN ? parseInt(process.env.JWT_ACCESS_EXPIRE_IN, 10) : 15 * 60, // 15 min por defecto
     // Sesión / refresh token rotativo: se extiende en cada renovación.
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRE_IN ? parseInt(process.env.JWT_REFRESH_EXPIRE_IN) : 7 * 24 * 60 * 60, // 7 días por defecto
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRE_IN ? parseInt(process.env.JWT_REFRESH_EXPIRE_IN, 10) : 7 * 24 * 60 * 60, // 7 días por defecto
     // Días que se conservan las sesiones cerradas antes de purgarlas de la BD.
-    sessionRetentionDays: parseInt(process.env.SESSION_RETENTION_DAYS || "30"),
+    sessionRetentionDays: parseInt(process.env.SESSION_RETENTION_DAYS || "30", 10),
   },
   db: {
     user: process.env.DB_USER || "postgres",
     host: process.env.DB_HOST,
     database: process.env.DB_NAME || "postgres",
     password: process.env.DB_PASSWORD,
-    port: parseInt(process.env.DB_PORT || "5432"),
-    maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE || "10"),
+    port: parseInt(process.env.DB_PORT || "5432", 10),
+    maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE || "10", 10),
   },
   email: {
     host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.EMAIL_PORT || "587"),
+    port: parseInt(process.env.EMAIL_PORT || "587", 10),
     secure: process.env.EMAIL_SECURE === "true" || false,
     user: process.env.EMAIL_USER || "",
     password: process.env.EMAIL_PASSWORD || "",
@@ -66,7 +66,7 @@ export const configServer = {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     bucketName: process.env.AWS_S3_BUCKET_NAME!,
     bucketNamePublic: process.env.AWS_S3_BUCKET_NAME_PUBLIC || "",
-    expiresIn: process.env.AWS_S3_EXPIRES_IN ? parseInt(process.env.AWS_S3_EXPIRES_IN) : 3600,
+    expiresIn: process.env.AWS_S3_EXPIRES_IN ? parseInt(process.env.AWS_S3_EXPIRES_IN, 10) : 3600,
     paths: {
       // Núcleo
       userAvatars: "user-avatars/",
@@ -89,7 +89,7 @@ export const configServer = {
     // Clave secreta: solo servidor, nunca se expone al navegador.
     secretKey: capSecretKey,
     enabled: Boolean(capApiEndpoint && capSecretKey),
-    timeoutMs: parseInt(process.env.CAP_TIMEOUT_MS || "8000"),
+    timeoutMs: parseInt(process.env.CAP_TIMEOUT_MS || "8000", 10),
   },
   webhooks: {
     emailSecret: process.env.WEBHOOK_EMAIL_SECRET || "",
@@ -109,7 +109,7 @@ export const configServer = {
     enabled: Boolean(process.env.SENTRY_DSN?.trim()) && sentryEnvironment !== "development",
     release: `${pkg.name}@${version}`,
     serverName: process.env.SENTRY_SERVER_NAME || process.env.HOSTNAME || "",
-    timeoutMs: parseInt(process.env.SENTRY_TIMEOUT_MS || "5000"),
+    timeoutMs: parseInt(process.env.SENTRY_TIMEOUT_MS || "5000", 10),
   },
 };
 

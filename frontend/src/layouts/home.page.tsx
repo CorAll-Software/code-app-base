@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 import { BRAND } from '@src/core/color'
 
 export const Home = () => {

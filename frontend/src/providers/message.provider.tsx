@@ -1,7 +1,7 @@
-import { createContext, FC, ReactNode, useContext } from 'react';
+import { createContext, type FC, type ReactNode, useContext } from 'react';
 import { message, notification } from 'antd';
-import { MessageInstance } from 'antd/es/message/interface';
-import { NotificationInstance } from 'antd/es/notification/interface';
+import type { MessageInstance } from 'antd/es/message/interface';
+import type { NotificationInstance } from 'antd/es/notification/interface';
 
 type AntdApiContextType = {
     message: MessageInstance;

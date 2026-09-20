@@ -67,17 +67,17 @@ export const ChangePassword = () => {
             </div>
             <div className="animation-area">
                 <ul className="box-area">
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
-                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
+                    <img src='/svg/isotipo-sin-fondo/co-blanco.svg' alt='' />
                 </ul>
             </div>
 

@@ -1,4 +1,4 @@
-import { GET, Paginated } from "@src/core/http";
+import { GET, type Paginated } from "@src/core/http";
 import type { CoberturaAuditoria, EventoAuditoria, FiltrosDisponibles } from "../types";
 
 /*

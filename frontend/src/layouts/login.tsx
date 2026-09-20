@@ -35,7 +35,7 @@ export const Login = () => {
             return
         }
 
-        fetch(window._routeApi + 'auth/login', {
+        fetch(`${window._routeApi}auth/login`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -46,7 +46,7 @@ export const Login = () => {
 
                 if (contentType === 'text/plain') {
                     message.error(await res.text())
-                } else if (contentType == 'application/json') {
+                } else if (contentType === 'application/json') {
                     const json = await res.json()
                     if (json.message) {
                         message.error(json.message)
@@ -67,13 +67,13 @@ export const Login = () => {
     }
 
     return (
-        <>
-            <Row gutter={[16, 16]} style={{ height: '100vh', margin: 0 }}>
+        <Row gutter={[16, 16]} style={{ height: '100vh', margin: 0 }}>
                 <Col xs={0} md={14} xl={18}>
                     <div className='flex-center' style={{ height: '100vh' }}>
                         <img
                             style={{ width: '100%', maxWidth: '700px' }}
-                            src='/svg/enterprise.svg' />
+                            src='/svg/enterprise.svg'
+                            alt='' />
                     </div>
                 </Col>
                 <Col xs={24} md={10} xl={6} className='flex flex-column justify-center' style={{ padding: '0 20px' }}>
@@ -122,7 +122,5 @@ export const Login = () => {
                     </footer>
                 </Col>
             </Row>
-
-        </>
     )
 }

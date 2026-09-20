@@ -1,4 +1,4 @@
-import { execProcedure, IPgResult } from '@core/db/connection';
+import { execProcedure, type IPgResult } from '@core/db/connection';
 import { notifyUserJson } from '@modules/core/auth.ws';
 
 export interface CreateNotificationParams {

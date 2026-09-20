@@ -52,7 +52,7 @@ export const ForgotPasswordPage = () => {
                 setEmail(values.email);
                 setCurrentStep(1);
             }
-        } catch (error) {
+        } catch (_error) {
             // Error managed by service/http
         }
         setLoading(false);
@@ -73,7 +73,7 @@ export const ForgotPasswordPage = () => {
             } else {
                 codeForm.setFieldValue('recovery_code', '');
             }
-        } catch (error) {
+        } catch (_error) {
             // Error managed by service/http
             codeForm.setFieldValue('recovery_code', '');
         }
@@ -97,7 +97,7 @@ export const ForgotPasswordPage = () => {
             if (result) {
                 setCurrentStep(3);
             }
-        } catch (error) {
+        } catch (_error) {
             // Error managed by service/http
         }
         setLoading(false);

@@ -1,4 +1,4 @@
-import { PERMISSIONS } from './permissions.constants';
+import type { PERMISSIONS } from './permissions.constants';
 
 /**
  * Tipado dinámico para permisos basados en el objeto PERMISSIONS.

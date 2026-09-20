@@ -1,6 +1,6 @@
 import { capitalizeWords } from '@src/core/parse';
-import { Col, Form, FormInstance, Input, Row, Select } from 'antd';
-import { UserData } from '../../services/users.service';
+import { Col, Form, type FormInstance, Input, Row, Select } from 'antd';
+import type { UserData } from '../../services/users.service';
 
 interface PersonalDataSectionProps {
     form: FormInstance;

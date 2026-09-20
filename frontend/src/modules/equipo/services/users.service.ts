@@ -41,11 +41,11 @@ export const usersService = {
                     if (params?.search) {
                         const s = params.search.toLowerCase();
                         filtered = filtered.filter((u) =>
-                            (u.names && u.names.toLowerCase().includes(s)) ||
-                            (u.first_name && u.first_name.toLowerCase().includes(s)) ||
-                            (u.last_name && u.last_name.toLowerCase().includes(s)) ||
-                            (u.email && u.email.toLowerCase().includes(s)) ||
-                            (u.cargo && u.cargo.toLowerCase().includes(s))
+                            (u.names?.toLowerCase().includes(s)) ||
+                            (u.first_name?.toLowerCase().includes(s)) ||
+                            (u.last_name?.toLowerCase().includes(s)) ||
+                            (u.email?.toLowerCase().includes(s)) ||
+                            (u.cargo?.toLowerCase().includes(s))
                         );
                     }
                     if (params?.enable !== undefined && params?.enable !== null) {

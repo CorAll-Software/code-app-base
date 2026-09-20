@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useAuth } from "../providers/auth-provider";
-import { PermisoSlug } from "../core/permissions.constants";
+import type { PermisoSlug } from "../core/permissions.constants";
 import { NotFoundPage } from "./404.page";
 
 /**

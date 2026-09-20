@@ -97,7 +97,7 @@ export class ManagedSocket {
                 data = raw
             }
         }
-        this.handlers.forEach((h) => h(data))
+        this.handlers.forEach((h) => { h(data) })
     }
 
     private scheduleReconnect() {

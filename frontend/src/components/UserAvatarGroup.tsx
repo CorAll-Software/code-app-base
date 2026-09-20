@@ -1,4 +1,4 @@
-import React from 'react'
+import type React from 'react'
 import { Avatar, Tooltip, theme } from 'antd'
 import { UserOutlined } from '@ant-design/icons'
 import { getColorString } from '@src/core/color'

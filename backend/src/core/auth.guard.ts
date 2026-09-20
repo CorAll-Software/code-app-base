@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 import { validateToken } from '@core/jwt';
 import { userHasAnyPermission } from '@core/permissions';
-import { PermisoSlug } from '@core/permisos.type';
+import type { PermisoSlug } from '@core/permisos.type';
 import { registrarEvento } from '@core/auditoria';
 
 /**

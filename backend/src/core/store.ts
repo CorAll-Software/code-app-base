@@ -2,7 +2,7 @@
 
 import { RedisClient } from 'bun'
 import { configServer } from '@/config'
-import { PermisoSlug } from './permisos.type';
+import type { PermisoSlug } from './permisos.type';
 
 /**
  * Centinela que distingue "caché cebada, este usuario no tiene permisos" de

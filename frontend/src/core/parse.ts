@@ -1,6 +1,6 @@
-import { InputNumberProps } from "antd"
+import type { InputNumberProps } from "antd"
 
-export const nn = (n: number) => n < 10 ? '0' + n : n
+export const nn = (n: number) => n < 10 ? `0${n}` : n
 
 const capitals = {
     'á': 'a',
@@ -55,8 +55,8 @@ export const getInitials = (name: string) => {
 
 export const toFixed = (n: number) => {
     const [_, decimal] = n.toString().split('.')
-    if (!decimal) return n + '.00'
-    if (decimal.length === 1) return n + '0'
+    if (!decimal) return `${n}.00`
+    if (decimal.length === 1) return `${n}0`
     return n
 }
 
@@ -65,6 +65,9 @@ export const toParseMoney = (num: number, placeholder = false) => {
     if (!num && placeholder) return '0.00'
     if (num === 0) return ''
     if (!num) return num
+    // La firma dice `number`, pero la línea de abajo comprueba
+    // `typeof num !== 'number'`: aquí llegan cadenas.
+    // biome-ignore lint/suspicious/noGlobalIsNan: Number.isNaN('abc') es false e isNaN('abc') true; cambiarlo alteraría el resultado.
     if (isNaN(num)) return num
     if (typeof num !== 'number') num = Number(num)
     const formatter = new Intl.NumberFormat('es-PE', {
@@ -72,7 +75,7 @@ export const toParseMoney = (num: number, placeholder = false) => {
         maximumFractionDigits: 2,
     });
     // return formatter.format(num).replace(/,/g, ',').replace(/,/g, '\'');
-    return 'S/ ' + formatter.format(num);
+    return `S/ ${formatter.format(num)}`;
 }
 
 export const formatterAntd: InputNumberProps<number>['formatter'] = (value) => {

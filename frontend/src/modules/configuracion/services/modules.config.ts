@@ -1,4 +1,4 @@
-import { Permission } from "./roles.service";
+import type { Permission } from "./roles.service";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Construcción automática del árbol de permisos.

@@ -1,4 +1,4 @@
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { configServer } from '../config';
 import { isSessionActive } from './session';
 
@@ -25,14 +25,14 @@ export const generateAccessToken = (claims: AccessTokenClaims) => {
 export const verifyToken = (token: string) => {
     try {
         return jwt.verify(token, secret, { algorithms: ['HS256'] }) as JwtPayload
-    } catch (error) {
+    } catch (_error) {
     }
 };
 
 export const extractToken = (headers: any, cookie?: any): string | null => {
 
     const authorization = headers?.authorization as string | undefined;
-    if (authorization && authorization.startsWith('Bearer ')) {
+    if (authorization?.startsWith('Bearer ')) {
         return authorization.split(' ')[1];
     }
     if (cookie?.session_token?.value) {
@@ -74,7 +74,7 @@ export const validateToken = async (headers: any, cookie?: any) => {
         res.isAdmin = roles?.some(r => r.name === 'Administrador' || r.id === 1) ?? false;
 
         return res
-    } catch (error) {
+    } catch (_error) {
         // console.error('Error al verificar token:', error);
         return { error: 'Token inválido', status: 401 }
     }

@@ -1,7 +1,7 @@
-import { Form, Input, Button, Tooltip, Row, Col, Flex, Card, Space, message, theme, FormInstance } from 'antd';
+import { Form, Input, Button, Tooltip, Row, Col, Flex, Card, Space, message, theme, type FormInstance } from 'antd';
 import { ReloadOutlined, SettingOutlined, CopyOutlined } from '@ant-design/icons';
 
-import { UserData } from '../../services/users.service';
+import type { UserData } from '../../services/users.service';
 
 interface CredentialsSectionProps {
     form: FormInstance;
@@ -182,8 +182,7 @@ export const CredentialsSection = ({
                     </Row>
 
                     {!isEdit && (
-                        <>
-                            <Button
+                        <Button
                                 type="primary"
                                 ghost
                                 icon={<CopyOutlined />}
@@ -192,7 +191,6 @@ export const CredentialsSection = ({
                             >
                                 Copiar Credenciales
                             </Button>
-                        </>
                     )}
 
                     {embedded && (

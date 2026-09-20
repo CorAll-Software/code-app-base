@@ -28,11 +28,11 @@ import { ChangePasswordModal } from "../components/ChangePasswordModal";
 import { UserFormModal } from "../components/UserFormModal";
 import { UsuarioDetailDrawer } from "../components/UsuarioDetailDrawer";
 import {
-  UserData,
+  type UserData,
   usersService,
 } from "../services/users.service";
 import { rolesService } from "../../configuracion/services/roles.service";
-import { Role } from "@src/core/types";
+import type { Role } from "@src/core/types";
 import { capitalizeWords, getInitials } from "@src/core/parse";
 import { getColorString } from "@src/core/color";
 import { useDebounce } from "@src/core/hooks";

@@ -1,4 +1,5 @@
 import { theme, Typography } from 'antd';
+import { clickable } from '@core/utils/a11y';
 
 const { Text } = Typography;
 
@@ -35,7 +36,7 @@ export const MobileBottomBar = ({ items }: MobileBottomBarProps) => {
             {items.map(item => (
                 <div
                     key={item.key}
-                    onClick={item.onClick}
+                    {...clickable(item.onClick)}
                     style={{
                         flex: 1,
                         display: 'flex',

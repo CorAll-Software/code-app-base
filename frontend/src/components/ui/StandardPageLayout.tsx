@@ -1,5 +1,5 @@
-import React, { ReactNode, useState, useEffect, useRef } from 'react';
-import { Card, Typography, Grid, Space, Button, Dropdown, Drawer, Popover, Input, theme, Tag, MenuProps } from 'antd';
+import React, { type ReactNode, useState, useEffect, useRef } from 'react';
+import { Card, Typography, Grid, Space, Button, Dropdown, Drawer, Popover, Input, theme, Tag, type MenuProps } from 'antd';
 import { FilterOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, TableOutlined, PlusOutlined, ClearOutlined, CheckOutlined, ReloadOutlined, DownOutlined } from '@ant-design/icons';
 import { MobileBottomBar } from '../../modules/configuracion/components/MobileBottomBar';
 import { usePullToRefresh } from '../../modules/configuracion/hooks/usePullToRefresh';

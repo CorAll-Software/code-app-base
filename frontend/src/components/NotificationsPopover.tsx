@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
 import { Popover, Badge, Button } from 'antd'
 import { BellOutlined, CheckOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { useNotificationsStore, AppNotification } from '@src/store/notifications.store'
+import { useNotificationsStore, type AppNotification } from '@src/store/notifications.store'
 
 const MODULE_COLORS: Record<string, { bg: string; color: string; border: string; accent: string }> = {
     helpdesk:    { bg: '#e6f7ff', color: '#1890ff', border: '#91d5ff', accent: '#1890ff' },
@@ -50,6 +51,7 @@ export const NotificationItem: React.FC<ItemProps> = ({ notification, onRead, on
     }
 
     return (
+        // biome-ignore lint/a11y/noStaticElementInteractions: solo estado visual de hover; no hay interaccion que exponer al teclado.
         <div
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}

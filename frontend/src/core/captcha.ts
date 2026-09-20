@@ -15,7 +15,7 @@ export const CAPTCHA_FIELD = 'cap-token'
 const rawEndpoint = (window._routeCaptcha || '').trim()
 
 /** Endpoint de la instancia Cap, siempre con barra final. */
-export const CAPTCHA_ENDPOINT = rawEndpoint ? rawEndpoint.replace(/\/+$/, '') + '/' : ''
+export const CAPTCHA_ENDPOINT = rawEndpoint ? `${rawEndpoint.replace(/\/+$/, '')}/` : ''
 
 export const CAPTCHA_ENABLED = Boolean(CAPTCHA_ENDPOINT)
 
