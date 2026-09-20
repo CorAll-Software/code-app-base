@@ -10,6 +10,8 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
 ## Comandos
 
 - Backend: `cd backend && bun run dev` (:3000, OpenAPI en `/openapi`) · typecheck: `bun run tsc`
+  · al cambiar dependencias: `bun run lockfile` (regenera `backend/bun.lock`,
+  el que usa Docker; el de la raíz no se alcanza desde ese contexto de build)
 - Frontend: `cd frontend && bun run dev` (:5004) · build+typecheck: `bun run build`
 - BD: `psql -d app_base -f postgres/tables.sql` → `postgres/auditoria/install.sql`
   (reejecutable; va antes porque las funciones del núcleo lo invocan) →

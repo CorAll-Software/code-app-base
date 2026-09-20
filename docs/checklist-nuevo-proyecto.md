@@ -100,10 +100,15 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
 
 ## 5b. Despliegue con Docker (Dokploy)
 
-- [ ] **El contexto del build tiene que ser `backend/`**, no la raíz del repo.
-      El `Dockerfile` hace `COPY . .` y luego `bun run build`; con la raíz como
-      contexto ejecutaría el `turbo build` del monorepo y el `ENTRYPOINT`
-      apuntaría a una ruta que no existe.
+- [ ] **Cada servicio se construye con su carpeta como contexto**
+      (`backend/`, `frontend/`), cada una con su `.dockerignore`.
+- [ ] **`backend/bun.lock` se regenera al cambiar dependencias**:
+      `cd backend && bun run lockfile`. Existe además del de la raíz porque
+      desde el contexto de `backend/` aquel no se alcanza, y sin lockfile
+      `bun install --frozen-lockfile` **no falla**: instala resolviendo de cero
+      y la imagen acaba con versiones que nadie probó. Si se olvida, el build
+      de Docker falla con *"lockfile had changes, but lockfile is frozen"* — no
+      se rompe en silencio.
 - [ ] La versión no necesita configuración: `build.ts` la compone con el número
       de `package.json` más un sello `<equipo>.<marca>` que cambia en cada
       build (dentro de Docker el equipo es el id del contenedor que construye).
