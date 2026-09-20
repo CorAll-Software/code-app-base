@@ -114,7 +114,8 @@ Reglas:
   archivo.
 - **Archivos**: subir a S3 con `core/s3.ts` (`buildKeyObject` + `uploadToS3Private`),
   guardar solo la key en BD y devolver URLs firmadas (`getS3ObjectUrl`).
-  Imágenes: convertir a WebP con `core/image.ts` cuando aplique.
+  Para imágenes, validar el MIME en el endpoint (ver `users.api.ts`, que acepta
+  solo JPEG/PNG/WebP); no hay conversión en el servidor.
 - **Registro**: importar y `.use()` el API en `src/router.ts`.
 - Alias de imports: `@core/*`, `@modules/*`, `@/*` (definidos en `tsconfig.json`).
 - Config SOLO vía `src/config.ts` (nunca `process.env` suelto en módulos).
@@ -428,10 +429,16 @@ frontend App.tsx (handler WS type === 'notification')
 
 ## 7. Calidad y estilo
 
-- TypeScript estricto; ejecutar `bun run tsc` (backend) y `bun run build`
-  (frontend) antes de dar por cerrado un cambio.
-- Sin dependencias nuevas salvo necesidad real; el stack ya cubre tablas,
-  gráficas (`@ant-design/plots`, chart.js) y export (exceljs, jspdf).
+- TypeScript estricto; antes de dar por cerrado un cambio: `bun run lint` en la
+  raíz (Biome, un solo `biome.json` para los dos workspaces), `bun run tsc` en
+  backend y `bun run build` en frontend.
+- Sin dependencias nuevas salvo necesidad real. La plantilla se mantiene mínima
+  a propósito: no trae librerías de gráficas ni de export (Excel/PDF), así que
+  si un proyecto las necesita las agrega él y justifica el peso.
+- **Al cambiar dependencias de cualquier servicio**: `bun run lockfile` en la
+  raíz, que regenera `backend/bun.lock` y `frontend/bun.lock` — los que usan las
+  imágenes de Docker. Si se olvida, el build de Docker falla (no pasa en
+  silencio); ver `scripts/lockfile.ts`.
 - Commits pequeños y descriptivos, siguiendo [Conventional Commits](https://www.conventionalcommits.org):
   `<tipo>[(alcance)][!]: <descripción>`. Tipos: `feat`, `fix`, `docs`, `refactor`,
   `perf`, `test`, `build`, `ci`, `chore`, `style`, `revert`. Alcance = área tocada

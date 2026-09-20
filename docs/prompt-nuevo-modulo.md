@@ -33,18 +33,29 @@ ENTIDADES A MODELAR:
 2) CONVENCIONES DE TABLA (idénticas a core)
 ═══════════════════════════════════════════════════════════════════════════════
 - PK: `id SERIAL PRIMARY KEY`.
-- Toda tabla termina con las columnas de auditoría EN ESTE ORDEN:
+- Toda tabla DE ENTIDAD termina con las columnas de auditoría EN ESTE ORDEN:
       status   BOOLEAN DEFAULT TRUE,   -- visible / soft-delete (hidden = FALSE)
       user_cr  INTEGER,
+      token_cr UUID,                   -- sesión que la creó (core.user_sessions.id)
       date_cr  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
       user_up  INTEGER,
+      token_up UUID,                   -- sesión que la modificó
       date_up  BIGINT
+  El trío es quién + desde qué dispositivo + cuándo. `token_cr`/`token_up`
+  guardan el `sid` del access token, que el backend manda SIEMPRE.
+- EXCEPCIÓN — tablas de evento: las que no crea ni edita una persona desde una
+  pantalla, sino un hecho del sistema (llega una notificación, alguien inicia
+  sesión), NO llevan el bloque; describen su ciclo con columnas propias. Antes
+  de copiarlo pregúntate: ¿puede esta fila haber sido creada por una sesión
+  distinta de la que describe? Si la respuesta es no, sobra.
 - Usa `enable BOOLEAN DEFAULT TRUE` (activo/inactivo) cuando la entidad se activa/desactiva.
 - Fechas SIEMPRE en epoch `BIGINT` (no timestamp), salvo que imites algo existente.
 - Montos `NUMERIC(12,2)`; pesos `NUMERIC(10,3)` (kg); metrajes `NUMERIC(8,2)`.
 - Catálogos compartidos entre módulos viven en su propio esquema de maestros,
   no se duplican.
-- FKs de auditoría (user_cr/user_up) NO se declaran como REFERENCES (igual que core).
+- FKs de auditoría (user_cr/user_up/token_cr/token_up) NO se declaran como
+  REFERENCES (igual que core): son trazas históricas y deben sobrevivir al
+  borrado del usuario o a la purga de sesiones.
 - Nombres de tabla en snake_case plural en español (zonas, movimientos, clientes).
 
 ENUMs (uno por concepto, prefijado por esquema, idempotente):
@@ -75,7 +86,9 @@ Crea índices para FKs y filtros frecuentes:
       PERFORM auditoria.registrar_evento('<entidad>', 'LECTURA', _id::TEXT);
   Solo accesos reales, NO cada listado paginado.
 - A nivel de fila, la trazabilidad mínima la dan SIEMPRE las columnas de auditoría
-  (user_cr/date_cr al insertar; user_up/date_up al actualizar).
+  (user_cr/token_cr/date_cr al insertar; user_up/token_up/date_up al actualizar).
+  Toda función save_*/delete_* debe aceptar token_cr en el req json y grabarlo:
+  el backend lo manda siempre como el sid del token.
 - Detalle completo: postgres/auditoria/README.md
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -94,6 +107,8 @@ Crea índices para FKs y filtros frecuentes:
 5) FUNCIONES SQL (patrón core — una por archivo en postgres/{{ESQUEMA}}/<entidad>/)
 ═══════════════════════════════════════════════════════════════════════════════
 Firma única: reciben un solo `req json` y RETURNAN `json`. LANGUAGE plpgsql.
+Toda función que ESCRIBA abre con `PERFORM auditoria.contexto(req);` (las de
+solo lectura no lo necesitan).
 
 -- get_<entidades>: lista (filtra status = TRUE, ordena id DESC)
 CREATE OR REPLACE FUNCTION {{ESQUEMA}}.get_<entidades>(req json)
@@ -113,25 +128,29 @@ END $function$;
 CREATE OR REPLACE FUNCTION {{ESQUEMA}}.save_<entidad>(req json)
 RETURNS json LANGUAGE plpgsql AS $function$
 DECLARE
-    v_id      INTEGER := (req->>'id')::INTEGER;
-    v_user_cr INTEGER := (req->>'user_cr')::INTEGER;
+    v_id       INTEGER := (req->>'id')::INTEGER;
+    v_user_cr  INTEGER := (req->>'user_cr')::INTEGER;
+    v_token_cr UUID    := (req->>'token_cr')::UUID;
     -- v_<campo> := req->>'<campo>';  (cast según tipo)
     result json;
 BEGIN
+    PERFORM auditoria.contexto(req);   -- SIEMPRE la primera línea
+
     -- Validaciones de unicidad con RAISE EXCEPTION (mensaje claro en español):
     -- IF EXISTS (SELECT 1 FROM {{ESQUEMA}}.<entidad>
     --     WHERE <campo_unico> = v_<campo> AND status = TRUE AND (v_id IS NULL OR id != v_id))
     -- THEN RAISE EXCEPTION 'Ya existe … : %', v_<campo>; END IF;
 
     IF v_id IS NULL OR v_id = 0 THEN
-        INSERT INTO {{ESQUEMA}}.<entidad> (<campos>, user_cr)
-        VALUES (<v_campos>, v_user_cr) RETURNING id INTO v_id;
+        INSERT INTO {{ESQUEMA}}.<entidad> (<campos>, user_cr, token_cr)
+        VALUES (<v_campos>, v_user_cr, v_token_cr) RETURNING id INTO v_id;
     ELSE
         UPDATE {{ESQUEMA}}.<entidad> SET
-            <campo> = COALESCE(v_<campo>, <campo>),
-            status  = COALESCE((req->>'status')::BOOLEAN, status),
-            user_up = v_user_cr,
-            date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
+            <campo>  = COALESCE(v_<campo>, <campo>),
+            status   = COALESCE((req->>'status')::BOOLEAN, status),
+            user_up  = v_user_cr,
+            token_up = v_token_cr,
+            date_up  = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE id = v_id;
     END IF;
 

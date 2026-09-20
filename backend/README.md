@@ -27,6 +27,8 @@ bun run dev            # http://localhost:3000 · OpenAPI en /openapi
 | `bun run new-password` | Genera el hash bcrypt de una contraseña |
 | `bun run tsc` | Chequeo de tipos sin emitir |
 
+> El lint es Biome y se corre desde la raíz del monorepo (`bun run lint`).
+
 ## Estructura
 
 ```
@@ -43,7 +45,9 @@ src/
 │   ├── permissions.ts          # Caché de permisos con respaldo en BD
 │   ├── store.ts / redis.ts     # Caché en Redis (sesiones activas, permisos)
 │   ├── auditoria.ts            # contextoAuditoria() + registrarEvento/Descarga
-│   ├── s3.ts / image.ts        # Storage S3/MinIO + conversión WebP
+│   ├── captcha.guard.ts        # Macro requireCaptcha (Cap, prueba de trabajo)
+│   ├── sentry.ts               # Cliente propio sin dependencias (DSN vacío = off)
+│   ├── s3.ts                   # Storage S3/MinIO (subida privada + URLs firmadas)
 │   ├── email/email-service.ts  # Nodemailer
 │   └── permissions.constants.ts# Diccionario de slugs (gemelo del frontend)
 └── modules/

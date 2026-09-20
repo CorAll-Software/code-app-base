@@ -34,7 +34,8 @@ app-base/
 │   └── src/
 │       ├── config.ts       # Variables de entorno tipadas
 │       ├── router.ts       # Registro de rutas (núcleo + módulos)
-│       ├── core/           # db, jwt, auth.guard, store(redis), s3, email, auditoria
+│       ├── core/           # db, jwt, auth.guard, captcha.guard, store(redis),
+│       │                   # s3, email, auditoria, sentry
 │       └── modules/
 │           ├── core/       # auth, users, roles, permissions (+ WebSocket)
 │           └── auditoria/  # consulta de la bitácora (solo GET)
@@ -53,6 +54,8 @@ app-base/
 │   ├── tables.sql          # Agregado: construye toda la BD
 │   ├── core/               # DDL + funciones del núcleo + seed de permisos
 │   └── auditoria/          # Bitácora inmutable + trigger genérico + install.sql
+├── scripts/lockfile.ts     # Regenera backend/bun.lock y frontend/bun.lock (Docker)
+├── biome.json              # Lint + formato, uno solo para los dos workspaces
 └── docs/                   # Prácticas, checklist y prompts
 ```
 
@@ -119,6 +122,19 @@ bun run dev             # http://localhost:5004
 ```
 
 También puedes usar Turbo desde la raíz: `bun install && bun run dev`.
+
+## Comandos de la raíz
+
+| Comando | Para qué |
+|---|---|
+| `bun run dev` / `bun run build` | Turbo sobre los dos workspaces |
+| `bun run lint` / `bun run lint:fix` | Biome (un solo `biome.json` para ambos) |
+| `bun run lockfile` | Regenera `backend/bun.lock` y `frontend/bun.lock` |
+
+> `bun run lockfile` hay que correrlo **cada vez que cambien las dependencias de
+> un servicio**: esos dos lockfiles son los que usan las imágenes de Docker (el
+> de la raíz no se alcanza desde el contexto de build de cada carpeta). Si se
+> olvida, el build de Docker falla — no pasa en silencio.
 
 ## Licencia
 

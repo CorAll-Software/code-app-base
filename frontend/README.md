@@ -18,7 +18,11 @@ bun run dev      # http://localhost:5004 (requiere el backend en :3000)
 | `bun run build` | `tsc` + build de producción |
 | `bun run build:qas` | Build con `.env.qas` |
 | `bun run build:prod` | Build con `.env.production` |
-| `bun run lint` | ESLint |
+| `bun run preview` | Sirve el build de `dist/` para revisarlo |
+
+> El lint no vive aquí: es Biome y se corre desde la raíz del monorepo
+> (`bun run lint` / `bun run lint:fix`), con un solo `biome.json` para los dos
+> workspaces.
 
 ## Estructura
 
@@ -40,7 +44,8 @@ src/
 ├── services/               # Servicios transversales (auth, sesiones, foto de perfil)
 └── modules/
     ├── equipo/             # Gestión de usuarios
-    └── configuracion/      # Roles y permisos + auditoría
+    ├── configuracion/      # Roles y permisos
+    └── auditoria/          # Visor de la bitácora
 ```
 
 ## Cómo agregar un módulo

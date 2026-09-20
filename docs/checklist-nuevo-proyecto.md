@@ -97,6 +97,8 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
       permisos ocultan el menú correctamente.
 - [ ] Perfil → **Sesiones**: entrar desde otro navegador, comprobar que aparecen
       las dos sesiones y que «Cerrar las demás sesiones» expulsa a la otra.
+- [ ] Desde la raíz: `bun run lint` (Biome) y `cd backend && bun run tsc` +
+      `cd frontend && bun run build` pasan sin errores.
 
 ## 5b. Despliegue con Docker (Dokploy)
 
@@ -119,8 +121,11 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
 - [ ] `SENTRY_DSN` entre las variables de entorno del servicio (no como build
       arg: se lee al arrancar). Comprobar en los logs del contenedor la línea
       `[SENTRY] Reporte de errores ACTIVO`; si dice `DESACTIVADO`, no reporta.
-- [ ] `NODE_ENV=production` ya lo fija el `Dockerfile`, así que el entorno que
-      se ve en Sentry sale bien sin tocar nada.
+- [ ] `NODE_ENV=production` ya lo fija el `Dockerfile` del **backend**, así que
+      el entorno que se ve en Sentry sale bien sin tocar nada. El frontend no
+      tiene runtime de Node: se compila y lo sirve `nginx:alpine-slim` con
+      `frontend/nginx.conf`, y su entorno sale del `BUILD_MODE` del build
+      (`prod` → `.env.production`, `qas` → `.env.qas`).
 
 ## 6. Primer módulo de negocio
 
