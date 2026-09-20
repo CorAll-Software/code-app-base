@@ -102,9 +102,10 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
 
 - [ ] **Cada servicio se construye con su carpeta como contexto**
       (`backend/`, `frontend/`), cada una con su `.dockerignore`.
-- [ ] **`backend/bun.lock` se regenera al cambiar dependencias**:
-      `cd backend && bun run lockfile`. Existe además del de la raíz porque
-      desde el contexto de `backend/` aquel no se alcanza, y sin lockfile
+- [ ] **Los lockfiles de las imágenes se regeneran al cambiar dependencias**:
+      `bun run lockfile` en la raíz, que actualiza `backend/bun.lock` y
+      `frontend/bun.lock`. Existen además del de la raíz porque desde el
+      contexto de cada carpeta aquel no se alcanza, y sin lockfile
       `bun install --frozen-lockfile` **no falla**: instala resolviendo de cero
       y la imagen acaba con versiones que nadie probó. Si se olvida, el build
       de Docker falla con *"lockfile had changes, but lockfile is frozen"* — no

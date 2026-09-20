@@ -9,7 +9,6 @@
     "start": "bun build/main.js",
     "dev": "bun run --watch --watch-path src src/index.ts",
     "build": "bun run build.ts",
-    "lockfile": "bun run lockfile.ts",
     "new-password": "bun run src/utils/new-password.ts",
     "tsc": "bunx tsc --noEmit"
   },

@@ -10,11 +10,13 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
 ## Comandos
 
 - Backend: `cd backend && bun run dev` (:3000, OpenAPI en `/openapi`) · typecheck: `bun run tsc`
-  · al cambiar dependencias: `bun run lockfile` (regenera `backend/bun.lock`,
-  el que usa Docker; el de la raíz no se alcanza desde ese contexto de build)
 - Frontend: `cd frontend && bun run dev` (:5004) · build+typecheck: `bun run build`
 - Lint: `bun run lint` en la raíz (Biome, un solo `biome.json` para los dos
   workspaces) · `bun run lint:fix` aplica lo autocorregible.
+- Al cambiar dependencias de cualquier servicio: `bun run lockfile` en la raíz.
+  Regenera `backend/bun.lock` y `frontend/bun.lock`, que son los que usan las
+  imágenes de Docker (el de la raíz no se alcanza desde el contexto de build
+  de cada carpeta). Si se olvida, el build de Docker falla, no pasa en silencio.
 - BD: `psql -d app_base -f postgres/tables.sql` → `postgres/auditoria/install.sql`
   (reejecutable; va antes porque las funciones del núcleo lo invocan) →
   seeds/funciones en `postgres/core/`
