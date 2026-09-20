@@ -2,9 +2,9 @@ import { defineConfig } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 import react from '@vitejs/plugin-react-swc'
 import analyze from 'rollup-plugin-analyzer'
-import path from 'path'
+import path from 'node:path'
 
-const nn = (n: number) => n < 10 ? '0' + n : n
+const nn = (n: number) => n < 10 ? `0${n}` : n
 const build1 = Math.floor(Date.now() / 10000).toString(36).toUpperCase()
 const hostname = process.env.USERNAME?.toUpperCase() || 'DEV'
 const date = (() => {
@@ -32,20 +32,12 @@ export default defineConfig({
       output: {
         minifyInternalExports: true,
         // Vite 8 (rolldown) exige que manualChunks sea una función.
-        // El orden importa: charts antes que antd, porque @ant-design/plots
-        // cae bajo @ant-design.
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return;
           // Antes que la regla de react: la ruta de `@sentry/react` contiene
           // `/react/` y si no, caería en vendor-react e invalidaría su caché
           // cada vez que se actualice el SDK.
           if (id.includes('@sentry')) return 'vendor-sentry';
-          if (
-            id.includes('@ant-design/plots') ||
-            id.includes('@antv') ||
-            id.includes('chart.js') ||
-            id.includes('react-chartjs-2')
-          ) return 'vendor-charts';
           if (
             id.includes('antd') ||
             id.includes('@ant-design') ||

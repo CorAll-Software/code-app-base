@@ -1,5 +1,5 @@
 import { S3Client, write } from "bun";
-import { configServer } from "src/config";
+import { configServer } from "@/config";
 
 export const client = new S3Client({
     endpoint: configServer.s3.baseUrl,

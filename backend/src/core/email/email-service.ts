@@ -1,7 +1,9 @@
 
-import nodemailer from 'nodemailer';
-import path from 'path';
-import { configServer } from 'src/config';
+// nodemailer 10 / @types/nodemailer 8: los tipos pasaron de namespace a
+// exportaciones nombradas, así que `nodemailer.Transporter` ya no existe.
+import nodemailer, { type SentMessageInfo, type Transporter } from 'nodemailer';
+import path from 'node:path';
+import { configServer } from '@/config';
 
 interface EmailConfig {
     host: string;
@@ -30,26 +32,9 @@ interface EmailData {
 const EMAIL_LOGO_PATH = path.resolve(import.meta.dir, '../../../assets/email-logo.png');
 const EMAIL_LOGO_CID = 'email-logo';
 
-interface CallbackInfo {
-    accepted: string[]
-    rejected: any[]
-    ehlo: string[]
-    envelopeTime: number
-    messageTime: number
-    messageSize: number
-    response: string
-    envelope: Envelope
-    messageId: string
-}
-
-interface Envelope {
-    from: string
-    to: string[]
-}
-
 class EmailService {
 
-    private transporter: nodemailer.Transporter | undefined;
+    private transporter: Transporter | undefined;
     private team = configServer.team || 'App';
 
     constructor() {
@@ -93,7 +78,7 @@ class EmailService {
         }
     }
 
-    async sendEmail(emailData: EmailData): Promise<CallbackInfo> {
+    async sendEmail(emailData: EmailData): Promise<SentMessageInfo> {
         const mailOptions = {
             from: `"${this.team}" <${configServer.email?.user}>`,
             to: emailData.to,

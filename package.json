@@ -12,9 +12,12 @@
   ],
   "scripts": {
     "dev": "turbo dev",
-    "build": "turbo build"
+    "build": "turbo build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
   },
   "devDependencies": {
-    "turbo": "^2.8.13"
+    "@biomejs/biome": "^2.5.14",
+    "turbo": "2.8.13"
   }
 }

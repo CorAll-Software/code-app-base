@@ -1,17 +1,20 @@
 import { RedisClient } from 'bun'
-import { configServer } from 'src/config'
-import { randomUUID } from 'crypto'
+import { configServer } from '@/config'
+import { randomUUID } from 'node:crypto'
 
 /*
     Servicio para manejar la comunicación con Redis, incluyendo publicación y suscripción a canales.
     Este servicio sirve para manejar websockets distribuidos entre múltiples instancias del servidor a través de Redis Pub/Sub.
 */
 
+/** Firma con la que se invocan los handlers de tema: `callback(userId, payload)`. */
+type TopicCallback = (userId: string, payload: any) => void;
+
 class RedisWebSocketService {
 
     private client: RedisClient;
     private subscriberClient: RedisClient;
-    private topicHandlers: Map<string, { userIds: Set<string>, callback: Function }> = new Map();
+    private topicHandlers: Map<string, { userIds: Set<string>, callback: TopicCallback }> = new Map();
     private localChannelSubs: Array<{ prefix: string; callback: (channel: string, payload: any) => void }> = [];
 
     instanceId = process.env.INSTANCE_ID ?? randomUUID();
@@ -35,7 +38,7 @@ class RedisWebSocketService {
         }
     }
 
-    registerTopic(type: string, initialUsers: Set<string>, callback: Function) {
+    registerTopic(type: string, initialUsers: Set<string>, callback: TopicCallback) {
         this.topicHandlers.set(type, { userIds: initialUsers, callback });
         return ({
             unregister: () => { this.topicHandlers.delete(type) },

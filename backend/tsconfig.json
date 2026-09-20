@@ -8,24 +8,25 @@
     ],
     "outDir": "./build",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "skipLibCheck": true,
-    "baseUrl": "./",
-    "ignoreDeprecations": "6.0",
+    // TypeScript 7 eliminó `baseUrl` y ya no admite rutas no relativas aquí:
+    // cada destino empieza por "./", como en el tsconfig del frontend.
     "paths": {
       "@/*": [
-        "src/*",
+        "./src/*"
       ],
       "@/config": [
-        "src/config",
+        "./src/config"
       ],
       "@core/*": [
-        "src/core/*",
+        "./src/core/*"
       ],
       "@modules/*": [
-        "src/modules/*",
-      ],
+        "./src/modules/*"
+      ]
     }
   }
 }
