@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigation } from "react-router-dom";
 import { Spin } from "antd";
 import { create } from "zustand";
@@ -26,6 +26,9 @@ export const TopProgress = () => {
   const active = useProgressStore((s) => s.active);
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
+  // Solo un guard: como dependencia reiniciaría el progreso al aparecer.
+  const visibleRef = useRef(false);
+  visibleRef.current = visible;
 
   useEffect(() => {
     if (active) {
@@ -37,7 +40,7 @@ export const TopProgress = () => {
       return () => clearInterval(trickle);
     }
 
-    if (visible) {
+    if (visibleRef.current) {
       setProgress(100);
       const hide = setTimeout(() => {
         setVisible(false);

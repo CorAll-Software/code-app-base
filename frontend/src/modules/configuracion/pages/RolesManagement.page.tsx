@@ -1,7 +1,7 @@
 import { Button, Space, Typography, Tag, Modal, theme, Grid, Pagination, Tooltip } from 'antd';
 import { DataTable } from '@src/components/DataTable';
 import { SafetyCertificateOutlined, EditOutlined, ReloadOutlined, DeleteOutlined, LoadingOutlined, KeyOutlined } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 
 const { useBreakpoint } = Grid;
@@ -45,7 +45,7 @@ export const RolesManagementPage = () => {
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [modalLoading, setModalLoading] = useState(false);
 
-    const fetchData = (page = currentPage, size = pageSize) => {
+    const fetchData = useCallback((page: number, size: number) => {
         setLoading(true);
 
         Promise.all([
@@ -67,11 +67,16 @@ export const RolesManagementPage = () => {
             .finally(() => {
                 setLoading(false);
             });
-    };
+    }, [debouncedNameFilter, statusFilter]);
+
+    // Se lee al disparar, no es disparador: con `pageSize` en las dependencias,
+    // el botón de "ver más" (que lo sube) provocaría una segunda carga.
+    const pageSizeRef = useRef(pageSize);
+    pageSizeRef.current = pageSize;
 
     useEffect(() => {
-        fetchData(1, pageSize);
-    }, [debouncedNameFilter, statusFilter]);
+        fetchData(1, pageSizeRef.current);
+    }, [fetchData]);
 
     // Pull-to-refresh para mobile
     const { containerRef, pullDistance, isRefreshing: isPulling } = usePullToRefresh({
@@ -276,7 +281,7 @@ export const RolesManagementPage = () => {
         totalCount={total}
         searchValue={nameFilter}
         onSearchChange={setNameFilter}
-        onRefresh={() => fetchData()}
+        onRefresh={() => fetchData(currentPage, pageSize)}
         primaryAction={{
           label: "Nuevo Rol",
           onClick: handleCreate,

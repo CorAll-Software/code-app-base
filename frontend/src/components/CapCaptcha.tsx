@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, type RefObject, type Ref } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, type RefObject, type Ref } from 'react'
 import { CAPTCHA_ENABLED, CAPTCHA_ENDPOINT } from '@core/captcha'
 
 /*
@@ -79,7 +79,7 @@ export const CapCaptcha = ({ ref, anchorRef, position = 'top', offset = 8 }: Cap
     }, [])
 
     /** Coloca el widget sobre (o bajo) el disparador y lo hace aparecer. */
-    const show = (widget: HTMLElement) => {
+    const show = useCallback((widget: HTMLElement) => {
         Object.assign(widget.style, {
             display: 'block',
             position: 'fixed',
@@ -113,14 +113,14 @@ export const CapCaptcha = ({ ref, anchorRef, position = 'top', offset = 8 }: Cap
             widget.style.opacity = '1'
             widget.style.marginTop = '0'
         })
-    }
+    }, [anchorRef, position, offset])
 
-    const hide = (widget: HTMLElement) => {
+    const hide = useCallback((widget: HTMLElement) => {
         widget.style.transform = 'scale(0.98)'
         widget.style.opacity = '0'
         widget.style.marginTop = '-4px'
         setTimeout(() => { widget.style.display = 'none' }, 200)
-    }
+    }, [])
 
     useImperativeHandle(ref, () => ({
         solve: async () => {
@@ -149,7 +149,7 @@ export const CapCaptcha = ({ ref, anchorRef, position = 'top', offset = 8 }: Cap
                 hide(widget)
             }
         }
-    }), [position, offset])
+    }), [show, hide])
 
     // El widget vive en document.body; aquí no se renderiza nada.
     return null

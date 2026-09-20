@@ -17,7 +17,7 @@ import { sessionsService, type UserSessionInfo } from '@src/services/sessions.se
 import { FotoUploader } from '@src/modules/equipo/components/FotoUploader';
 import { portalPhotoService } from '@src/services/profile-photo.service';
 import { Button, Divider, Drawer, Empty, Form, Input, List, Popconfirm, Skeleton, Tag, Tabs, Typography, notification } from 'antd';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 
 const { Text } = Typography;
@@ -360,13 +360,13 @@ const SessionsTab = () => {
     /** id de la sesión que se está cerrando, o 'others' para el cierre masivo. */
     const [closing, setClosing] = useState<string | null>(null);
 
-    const load = async () => {
+    const load = useCallback(async () => {
         setLoading(true);
         setSessions(await sessionsService.list());
         setLoading(false);
-    };
+    }, []);
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [load]);
 
     const closeOne = async (id: string) => {
         setClosing(id);

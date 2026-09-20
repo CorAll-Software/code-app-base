@@ -51,7 +51,7 @@ function App() {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
+  }, [notification.success, notification.error])
 
 
   const Nav = () => {
@@ -74,12 +74,14 @@ function App() {
 
     // Set initial open key based on current route
     useEffect(() => {
-      if (pathSegments.length > 1) {
-        setMobileOpenKeys([pathSegments[0]]);
+      const segments = location.split('/').filter((item) => item !== '');
+      if (segments.length > 1) {
+        setMobileOpenKeys([segments[0]]);
       }
     }, [location]);
 
     // WebSocket for session monitoring
+    // biome-ignore lint/correctness/useExhaustiveDependencies: depender de `authContext` entero reconectaría el socket en cada render
     useEffect(() => {
       if (!authContext.isAuthenticated()) return;
 
@@ -182,7 +184,7 @@ function App() {
           currentSocket.close();
         }
       };
-    }, [authContext.user]);
+    }, [authContext.user, navigate]);
 
     if (authContext.loading) { return <LoadingPage /> }
 

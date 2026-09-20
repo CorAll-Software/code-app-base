@@ -60,7 +60,7 @@ export const AuditoriaPage = () => {
   const [cobertura, setCobertura] = useState<CoberturaAuditoria[]>([]);
   const [cargandoCobertura, setCargandoCobertura] = useState(false);
 
-  const cargar = useCallback(async (paginaSolicitada = pagina) => {
+  const cargar = useCallback(async (paginaSolicitada: number) => {
     setCargando(true);
     const res = await auditoriaService.listar({
       buscar: buscar || undefined,
@@ -78,9 +78,9 @@ export const AuditoriaPage = () => {
     setCargando(false);
     setEventos(res.data);
     setTotal(res.total);
-  }, [buscar, operacion, entidad, usuarioId, rango, pagina]);
+  }, [buscar, operacion, entidad, usuarioId, rango]);
 
-  useEffect(() => { cargar(1); setPagina(1); }, [buscar, operacion, entidad, usuarioId, rango]);
+  useEffect(() => { cargar(1); setPagina(1); }, [cargar]);
 
   useEffect(() => {
     auditoriaService.filtros().then((res) => {
@@ -168,7 +168,7 @@ export const AuditoriaPage = () => {
         searchValue={buscar}
         onSearchChange={setBuscar}
         searchPlaceholder="Buscar por detalle, endpoint, entidad o id..."
-        onRefresh={() => cargar()}
+        onRefresh={() => cargar(pagina)}
         isFilterOpen={filtrosAbiertos}
         setIsFilterOpen={setFiltrosAbiertos}
         onClearFilters={limpiarFiltros}

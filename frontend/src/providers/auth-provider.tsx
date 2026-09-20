@@ -1,5 +1,5 @@
 import type { UserSession } from '@src/core/types';
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useFeedback } from './message.provider';
 import { type PermisoSlug, SYSTEM_ROLES } from '@src/core/permissions.constants';
 import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
@@ -37,19 +37,21 @@ export const AuthProvider = ({ children }) => {
     // render; la ref mantiene siempre la versión vigente.
     const logoutRef = useRef<() => void>(() => { });
 
-    const applySession = (userData: any) => {
+    // Estables: entran en efectos que solo deben correr una vez (el bootstrap
+    // volvería a llamar a verify-token en cada render).
+    const applySession = useCallback((userData: any) => {
         setUser(userData);
         if (userData?.permisos) {
             setPermissions(new Set(userData.permisos));
         }
         // Un stack sin saber a quién le pasó cuesta el doble de rastrear.
         identificarUsuario(userData);
-    };
+    }, []);
 
-    const login = (userData, expiredIn) => {
+    const login = useCallback((userData, expiredIn) => {
         applySession(userData);
         setExpiredIn(expiredIn);
-    };
+    }, [applySession]);
 
     const logout = () => {
         try {
@@ -82,7 +84,9 @@ export const AuthProvider = ({ children }) => {
 
     logoutRef.current = logout;
 
-    const hasPermission = (permiso: PermisoSlug | PermisoSlug[]) => {
+    // Memoizada: es dependencia de los useMemo que arman columnas y menús, y sin
+    // identidad estable esos memos se recalculan en cada render.
+    const hasPermission = useCallback((permiso: PermisoSlug | PermisoSlug[]) => {
         if (!permiso) return true;
 
         // Bypass para Administradores
@@ -93,7 +97,7 @@ export const AuthProvider = ({ children }) => {
             return permiso.some(p => permissions.has(p));
         }
         return permissions.has(permiso);
-    }
+    }, [user, permissions])
 
     const refreshPermissions = async () => {
         if (!localStorage.getItem(LOCAL_STORAGE_KEYS.TOKEN)) return;
@@ -129,7 +133,7 @@ export const AuthProvider = ({ children }) => {
         };
         window.addEventListener(SESSION_REFRESHED_EVENT, onRefreshed);
         return () => window.removeEventListener(SESSION_REFRESHED_EVENT, onRefreshed);
-    }, []);
+    }, [applySession]);
 
     // Renovar el access token ANTES de que expire, para que el usuario no vea
     // ni un 401 intermedio. Si la renovación falla, la sesión terminó de verdad.
@@ -147,7 +151,7 @@ export const AuthProvider = ({ children }) => {
         }, delay);
 
         return () => clearTimeout(timeoutId);
-    }, [user, expiredIn]);
+    }, [user, expiredIn, message.warning]);
 
     useEffect(() => {
 
@@ -191,7 +195,7 @@ export const AuthProvider = ({ children }) => {
 
         return () => window.removeEventListener('logout', onLogout);
 
-    }, []);
+    }, [login, message.warning]);
 
     return (
         <AuthContext.Provider

@@ -10,11 +10,13 @@ type AntdApiContextType = {
 
 const FeedbackContext = createContext<AntdApiContextType | null>(null);
 
+// Fuera del componente: `useNotification` memoiza su API con la config como
+// dependencia, y un literal inline la haría inestable en cada render.
+const NOTIFICATION_CONFIG = { top: 76 };
+
 export const FeedbackProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [messageApi, messageContextHolder] = message.useMessage();
-    const [notificationApi, notificationContextHolder] = notification.useNotification({
-        top: 76,
-    });
+    const [notificationApi, notificationContextHolder] = notification.useNotification(NOTIFICATION_CONFIG);
 
     window.messageApi = messageApi;
     window.notificationApi = notificationApi;

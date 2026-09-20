@@ -23,7 +23,7 @@ import {
   Pagination,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { ChangePasswordModal } from "../components/ChangePasswordModal";
 import { UserFormModal } from "../components/UserFormModal";
 import { UsuarioDetailDrawer } from "../components/UsuarioDetailDrawer";
@@ -76,7 +76,7 @@ export const UsersManagementPage = () => {
   const [detailUserId, setDetailUserId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserData | null>(null);
 
-  const fetchData = (page = currentPage, size = pageSize) => {
+  const fetchData = useCallback((page: number, size: number) => {
     setLoading(true);
     usersService
       .getPaginatedUsers({
@@ -96,9 +96,9 @@ export const UsersManagementPage = () => {
         setPageSize(size);
       })
       .finally(() => setLoading(false));
-  };
+  }, [debouncedNameFilter, statusFilter, currentUser?.id]);
 
-  const fetchInitialData = () => {
+  const fetchInitialData = useCallback(() => {
     setLoading(true);
     rolesService
       .getRoles({ page: 1, page_size: 1000 })
@@ -109,29 +109,34 @@ export const UsersManagementPage = () => {
         console.error("Error al cargar datos estáticos:", error),
       )
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  const fetchAllUsers = () => {
+  const fetchAllUsers = useCallback(() => {
     usersService
       .getPaginatedUsers({ page: 1, page_size: 1000, enable: true })
       .then((res) => setAllUsers(res.data || []));
-  };
+  }, []);
 
   useEffect(() => {
     fetchInitialData();
     fetchAllUsers();
-  }, []);
+  }, [fetchInitialData, fetchAllUsers]);
+
+  // Se lee al disparar, no es disparador: con `pageSize` en las dependencias,
+  // el botón de "ver más" (que lo sube) provocaría una segunda carga.
+  const pageSizeRef = useRef(pageSize);
+  pageSizeRef.current = pageSize;
 
   useEffect(() => {
-    fetchData(1, pageSize);
-  }, [debouncedNameFilter, statusFilter]);
+    fetchData(1, pageSizeRef.current);
+  }, [fetchData]);
 
   const {
     containerRef,
     pullDistance,
     isRefreshing: isPulling,
   } = usePullToRefresh({
-    onRefresh: fetchData,
+    onRefresh: () => fetchData(currentPage, pageSize),
     enabled: isMobile,
   });
 
@@ -141,16 +146,16 @@ export const UsersManagementPage = () => {
   };
   // Carga datos completos del usuario antes de abrir el formulario de edición,
   // ya que la lista solo devuelve campos básicos (sin banco, salario, etc.)
-  const handleEditUser = (user: UserData) => {
+  const handleEditUser = useCallback((user: UserData) => {
     usersService.getUserById(user.id).then((fullUser) => {
       setSelectedUser(fullUser || user);
       setIsFormModalOpen(true);
     });
-  };
-  const handleViewUser = (user: UserData) => {
+  }, []);
+  const handleViewUser = useCallback((user: UserData) => {
     setDetailUserId(user.id);
     setIsDetailOpen(true);
-  };
+  }, []);
   const handleEditFromDetail = () => {
     if (detailUserId) {
       usersService.getUserById(detailUserId).then((fullUser) => {
@@ -162,12 +167,12 @@ export const UsersManagementPage = () => {
     }
     setIsDetailOpen(false);
   };
-  const handleChangePassword = (user: UserData) => {
+  const handleChangePassword = useCallback((user: UserData) => {
     setSelectedUser(user);
     setIsPassModalOpen(true);
-  };
+  }, []);
 
-  const handleDeleteUser = (user: UserData) => {
+  const handleDeleteUser = useCallback((user: UserData) => {
     if (isMobile) {
       setDeleteTarget(user);
       return;
@@ -180,15 +185,15 @@ export const UsersManagementPage = () => {
       cancelText: "Cancelar",
       onOk: () =>
         usersService.deleteUser(user).then((success) => {
-          if (success) setUsers(users.filter((u) => u.id !== user.id));
+          if (success) setUsers((prev) => prev.filter((u) => u.id !== user.id));
         }),
     });
-  };
+  }, [isMobile]);
 
   const confirmDeleteUser = () => {
     if (!deleteTarget) return;
     usersService.deleteUser(deleteTarget).then((success) => {
-      if (success) setUsers(users.filter((u) => u.id !== deleteTarget.id));
+      if (success) setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
     });
     setDeleteTarget(null);
   };
@@ -208,12 +213,12 @@ export const UsersManagementPage = () => {
       .then((result) => {
         if (result) {
           if (selectedUser) {
-            setUsers(users.map((u) => (u.id === result.id ? result : u)));
+            setUsers((prev) => prev.map((u) => (u.id === result.id ? result : u)));
           } else {
-            setUsers([...users, result]);
+            setUsers((prev) => [...prev, result]);
           }
           setIsFormModalOpen(false);
-          fetchData();
+          fetchData(currentPage, pageSize);
           fetchAllUsers();
         }
       })
@@ -505,7 +510,16 @@ export const UsersManagementPage = () => {
       });
     }
     return cols;
-  }, [hasPermission, token, users, isMobile]);
+  }, [
+    hasPermission,
+    token,
+    isMobile,
+    currentUser?.id,
+    handleViewUser,
+    handleEditUser,
+    handleChangePassword,
+    handleDeleteUser,
+  ]);
 
   const filtersNode = (
     <FilterContainer>
@@ -566,7 +580,7 @@ export const UsersManagementPage = () => {
         totalCount={total}
         searchValue={nameFilter}
         onSearchChange={setNameFilter}
-        onRefresh={() => fetchData()}
+        onRefresh={() => fetchData(currentPage, pageSize)}
         primaryAction={{
           label: "Nuevo",
           onClick: handleAddUser,

@@ -46,7 +46,7 @@ const PermissionsTree = ({ value: selectedKeys = [], onChange, permissions }: Pe
   const allGroupKeys = useMemo(() => collectGroupKeys(treeData), [treeData]);
 
   const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
-  useEffect(() => { setExpandedKeys(allGroupKeys); }, [treeData]);
+  useEffect(() => { setExpandedKeys(allGroupKeys); }, [allGroupKeys]);
 
   const titleRender = (node: PermissionTreeNode) => {
     if (node.isGroup) {
