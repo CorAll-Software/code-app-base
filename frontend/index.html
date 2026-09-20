@@ -45,10 +45,16 @@
     const capApiEndpoint = "%VITE_CAP_API_ENDPOINT%"
     const umamiScriptUrl = "%VITE_UMAMI_SCRIPT_URL%"
     const umamiWebsiteId = "%VITE_UMAMI_WEBSITE_ID%"
+    const sentryDsn = "%VITE_SENTRY_DSN%"
+    const sentryEnvironment = "%VITE_SENTRY_ENVIRONMENT%"
 
     const isEnvValue = (value) => value && !value.startsWith('%VITE_')
 
     const isDevelopment = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
+    // Se publica porque la app también la necesita (p. ej. el ErrorBoundary
+    // enseña el error crudo solo en desarrollo). Un único criterio, aquí.
+    window._isDevelopment = isDevelopment;
 
     window._routeApi = isEnvValue(apiUrl)
       ? apiUrl
@@ -60,6 +66,12 @@
 
     // Cap (CAPTCHA autoalojado). Vacío = desactivado (plantilla sin instancia Cap).
     window._routeCaptcha = isEnvValue(capApiEndpoint) ? capApiEndpoint : '';
+
+    // Sentry (reporte de errores). Mismo criterio que la analítica: nunca en
+    // localhost, y solo si el DSN llegó de verdad en el build. El init real lo
+    // hace src/core/sentry.ts; aquí solo se publica la configuración.
+    window._sentryDsn = (!isDevelopment && isEnvValue(sentryDsn)) ? sentryDsn : '';
+    window._sentryEnvironment = isEnvValue(sentryEnvironment) ? sentryEnvironment : 'production';
 
     if (!isDevelopment && isEnvValue(umamiScriptUrl) && isEnvValue(umamiWebsiteId)) {
       const script = document.createElement('script');

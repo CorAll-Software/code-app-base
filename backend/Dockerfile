@@ -1,6 +1,6 @@
 # use the official Bun image
 # see all versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:1 AS base
+FROM oven/bun:latest AS base
 WORKDIR /usr/src/app
 
 # install dependencies into temp directory
@@ -22,6 +22,8 @@ COPY --from=install /temp/dev/node_modules node_modules
 COPY . .
 
 # build
+# El sello del despliegue lo genera build.ts solo: aquí HOSTNAME es el id del
+# contenedor que construye, así que cambia en cada build sin configurar nada.
 ENV NODE_ENV=production
 RUN bun run build
 

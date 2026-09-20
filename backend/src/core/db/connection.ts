@@ -1,8 +1,37 @@
 import { SQL } from 'bun'
 import { configServer } from '../../config'
+import { reportarError, sqlStateDe } from '../sentry'
 
 // Ejecuta una función de pg usando Bun SQL nativo
 export interface IPgResult { error?: any, result?: any }
+
+/*
+  Reporte de fallos de base de datos.
+
+  Este es el punto donde hay que capturar, y no más arriba: `execProcedure`
+  devuelve `{ error: string }`, así que en cuanto sale de aquí el objeto
+  original —con su `code` de PostgreSQL— ya no existe. Sin el código no se
+  puede distinguir un defecto de un mensaje de negocio.
+
+  Y hace falta distinguirlo porque los endpoints convierten CUALQUIER error de
+  aquí en un 400, no en un 500: una función SQL rota nunca llega al manejador
+  global de `index.ts`. Si no se reportara aquí, no se reportaría en ningún
+  sitio.
+
+  `reportarError` descarta por su cuenta los P0001 (`RAISE EXCEPTION`, que es
+  como las funciones del núcleo señalan "ya existe ese correo").
+*/
+const reportarErrorDeBd = (error: unknown, procedureName: string, intentos: number) => {
+    const codigo = sqlStateDe(error) ?? (error as any)?.code
+    reportarError(error, {
+        transaccion: `DB ${procedureName}`,
+        // Agrupado por función y código: un `save_user` roto es una incidencia
+        // distinta de un `get_users` roto, aunque el mensaje se parezca.
+        huella: ['db', procedureName, String(codigo ?? 'sin-codigo')],
+        etiquetas: { capa: 'db', procedimiento: procedureName },
+        extra: { intentos, detalle: (error as any)?.detail, pista: (error as any)?.hint },
+    })
+}
 
 // Inicializa la conexión SQL de Bun con configuración
 let sql: SQL
@@ -85,6 +114,7 @@ export async function execProcedure(
 
             // Si no es timeout o ya se agotaron los reintentos
             console.error(`[DB] Error en ${procedureName}:`, errorMsg)
+            reportarErrorDeBd(error, procedureName, attempt)
             return { error: errorMsg }
         }
     }

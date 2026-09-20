@@ -4,6 +4,10 @@ bun.lockb
 
 # Build output
 build
+# ...pero el script que construye sí tiene que entrar en la imagen: `bun run
+# build` lo invoca dentro del contenedor. El patrón `build` solo casa con la
+# carpeta, no con `build.ts`; esta línea lo deja explícito por si acaso.
+!build.ts
 
 # Development
 .env

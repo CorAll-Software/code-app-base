@@ -37,6 +37,17 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
     **con barra final**: `https://<instancia-cap>/<site-key>/`)
   - Mientras queden vacíos el CAPTCHA está desactivado (el backend lo avisa al
     arrancar); definirlos antes de salir a producción.
+- [ ] **Reporte de errores (Sentry)**: crear el proyecto en la instancia
+      autoalojada y usar **el mismo DSN en los dos lados** (no es un secreto:
+      viaja en cada petición del navegador y solo autoriza a enviar).
+  - `SENTRY_DSN` en `backend/.env` — **a mano en cada servidor**: `.env` está en
+    gitignore, así que el DSN no viaja con el despliegue y es lo que más se
+    olvida. El backend dice al arrancar si quedó activo o no; si no lo dice,
+    no está reportando.
+  - `VITE_SENTRY_DSN` en `frontend/.env.production` y `.env.qas` — estos sí se
+    versionan, así que basta ponerlo una vez.
+  - Vacío = desactivado. En `localhost` nunca se activa, y el backend tampoco
+    reporta con `SENTRY_ENVIRONMENT=development`.
 - [ ] Revisar `timeZone` en `backend/src/config.ts` (por defecto `America/Lima`).
 
 ## 4. Base de datos
@@ -86,6 +97,24 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
       permisos ocultan el menú correctamente.
 - [ ] Perfil → **Sesiones**: entrar desde otro navegador, comprobar que aparecen
       las dos sesiones y que «Cerrar las demás sesiones» expulsa a la otra.
+
+## 5b. Despliegue con Docker (Dokploy)
+
+- [ ] **El contexto del build tiene que ser `backend/`**, no la raíz del repo.
+      El `Dockerfile` hace `COPY . .` y luego `bun run build`; con la raíz como
+      contexto ejecutaría el `turbo build` del monorepo y el `ENTRYPOINT`
+      apuntaría a una ruta que no existe.
+- [ ] La versión no necesita configuración: `build.ts` la compone con el número
+      de `package.json` más un sello `<equipo>.<marca>` que cambia en cada
+      build (dentro de Docker el equipo es el id del contenedor que construye).
+      Sale en `GET /api/` y en cada evento de Sentry — es lo que identifica de
+      qué despliegue salió un fallo. Subir el número semántico sigue siendo
+      manual, en `backend/package.json`.
+- [ ] `SENTRY_DSN` entre las variables de entorno del servicio (no como build
+      arg: se lee al arrancar). Comprobar en los logs del contenedor la línea
+      `[SENTRY] Reporte de errores ACTIVO`; si dice `DESACTIVADO`, no reporta.
+- [ ] `NODE_ENV=production` ya lo fija el `Dockerfile`, así que el entorno que
+      se ve en Sentry sale bien sin tocar nada.
 
 ## 6. Primer módulo de negocio
 

@@ -36,6 +36,10 @@ export default defineConfig({
         // cae bajo @ant-design.
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return;
+          // Antes que la regla de react: la ruta de `@sentry/react` contiene
+          // `/react/` y si no, caería en vendor-react e invalidaría su caché
+          // cada vez que se actualice el SDK.
+          if (id.includes('@sentry')) return 'vendor-sentry';
           if (
             id.includes('@ant-design/plots') ||
             id.includes('@antv') ||

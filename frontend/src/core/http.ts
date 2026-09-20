@@ -1,4 +1,5 @@
 import { LOCAL_STORAGE_KEYS } from './constants';
+import { reportarErrorApi } from './sentry';
 
 const api = window._routeApi;
 
@@ -172,7 +173,17 @@ const request = async <T>(config: RequestConfig): Promise<T> => {
     handle401(res);
 
     const text = await res.text();
-    const json = text ? JSON.parse(text) : {};
+    let json: any;
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch (parseError) {
+      // El servidor contestó algo que no es JSON: una pasarela devolviendo
+      // HTML, un proxy mal configurado, una respuesta truncada. Eso sí es un
+      // defecto, y sin esto se confundiría con un fallo de red en el catch.
+      reportarErrorApi(parseError, { endpoint: url, metodo: method, status: res.status });
+      notifyError(options?.msgError || "Respuesta inesperada del servidor");
+      return Promise.reject(parseError);
+    }
 
     if (!res.ok) {
       // Si no llega un mensaje del servidor, usar el mensaje genérico
@@ -183,6 +194,30 @@ const request = async <T>(config: RequestConfig): Promise<T> => {
         options?.msgError ||
         "Error en la solicitud";
       notifyError(errorMessage);
+
+      /*
+        Qué se reporta y qué no.
+
+        Solo los 5xx. Un 4xx es el servidor diciendo que la petición estaba mal
+        —validación, permiso denegado, no encontrado, sesión vencida— y eso es
+        la aplicación funcionando: si entrara en la bitácora, la llenaría de
+        cosas que nadie va a arreglar y dejaríamos de mirarla.
+
+        Los 4xx se marcan como esperados porque el valor rechazado viaja hasta
+        quien llamó, y si alguien olvida el `.catch` acabaría como
+        `unhandledrejection`. La marca hace que `beforeSend` lo descarte.
+      */
+      if (res.status >= 500) {
+        reportarErrorApi(
+          new Error(`${method} ${url} → ${res.status}: ${errorMessage}`),
+          { endpoint: url, metodo: method, status: res.status }
+        );
+      } else if (json && typeof json === 'object') {
+        // Solo si hay dónde colgar la marca: un cuerpo que parsea a texto,
+        // número o null no admite propiedades y haría reventar la petición.
+        Object.defineProperty(json, '__esperado', { value: true, enumerable: false });
+      }
+
       return Promise.reject(json as T);
     }
 
@@ -191,7 +226,9 @@ const request = async <T>(config: RequestConfig): Promise<T> => {
     }
     return json as T;
   } catch (err: any) {
-    // Errores de red o de parseo (los del servidor ya se rechazaron arriba).
+    // Errores de red (los del servidor y los de parseo ya se trataron arriba).
+    // No se reportan a propósito: son la conexión del usuario, no un defecto
+    // nuestro, y reportarlos llenaría la bitácora de gente con mala cobertura.
     if (err && (err.message || err.error || err.errorMessage)) return Promise.reject(err);
     notifyError(err?.message || String(err));
     return Promise.reject(err);

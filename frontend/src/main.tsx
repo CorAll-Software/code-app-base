@@ -19,7 +19,12 @@ dayjs.extend(relativeTime)
 import { AuthProvider } from '@src/providers/auth-provider'
 import locale_es from 'dayjs/locale/es'
 import { BRAND } from '@src/core/color'
+import { initSentry } from '@src/core/sentry'
+import { AppErrorBoundary } from '@src/layouts/error-boundary'
 dayjs.locale(locale_es)
+
+// Antes de montar nada: así un fallo durante el primer render ya se captura.
+initSentry()
 
 // El layout autenticado (App) es el elemento raíz; los módulos son rutas hijas
 // con `lazy`, de modo que useNavigation() expone el estado de carga del chunk.
@@ -41,10 +46,12 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       },
     },
   }}>
-    <FeedbackProvider>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </FeedbackProvider>
+    <AppErrorBoundary>
+      <FeedbackProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </FeedbackProvider>
+    </AppErrorBoundary>
   </ConfigProvider>
 )

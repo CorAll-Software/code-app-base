@@ -37,6 +37,14 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
   `...contextoAuditoria(user, headers, 'PUT /x')` en el payload. Un esquema
   nuevo se activa con `SELECT auditoria.activar_esquema('<esquema>');`.
   Ver `postgres/auditoria/README.md`.
+- Reporte de errores: Sentry autoalojado, **mismo DSN en los dos lados**
+  (`SENTRY_DSN` / `VITE_SENTRY_DSN`); vacío = desactivado, como Cap. El backend
+  usa un cliente propio sin dependencias (`core/sentry.ts`) y dice al arrancar
+  si quedó activo; el frontend usa `@sentry/react` y nunca reporta en localhost.
+  Lo que **no** entra en la bitácora: 404, errores de validación, 4xx, y los
+  `RAISE EXCEPTION` de plpgsql (`P0001`) — son negocio, no defectos. Los fallos
+  de BD se capturan en `execProcedure`, que es donde el error de pg aún conserva
+  su código: los endpoints los convierten en 400 y nunca llegan al `onError`.
 - Frontend: HTTP solo vía `core/http.ts` (GET/POST tipados con toasts);
   rutas en `router.config.tsx` (lazy) + menú en `menu.config.tsx`, ambos con `slug`.
 - Los servicios NUNCA rechazan: devuelven centinela (`[]` / `null` / `false`) y

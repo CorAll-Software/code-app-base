@@ -23,6 +23,7 @@
     "@dnd-kit/modifiers": "9.0.0",
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
+    "@sentry/react": "^10.75.0",
     "antd": "6.4.5",
     "canvas-confetti": "1.9.4",
     "cap-widget": "0.1.57",

@@ -4,6 +4,7 @@ import { useFeedback } from './message.provider';
 import { PermisoSlug, SYSTEM_ROLES } from '@src/core/permissions.constants';
 import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
 import { POST, SESSION_REFRESHED_EVENT, clearSession, getRefreshToken, refreshSession } from '@src/core/http';
+import { identificarUsuario } from '@src/core/sentry';
 
 export interface IAuthContext {
     user: UserSession | null;
@@ -41,6 +42,8 @@ export const AuthProvider = ({ children }) => {
         if (userData?.permisos) {
             setPermissions(new Set(userData.permisos));
         }
+        // Un stack sin saber a quién le pasó cuesta el doble de rastrear.
+        identificarUsuario(userData);
     };
 
     const login = (userData, expiredIn) => {
@@ -74,6 +77,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setPermissions(new Set());
         setExpiredIn(0);
+        identificarUsuario(null);
     };
 
     logoutRef.current = logout;
