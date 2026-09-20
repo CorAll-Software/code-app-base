@@ -25,14 +25,7 @@
         "useImportType": "warn"
       },
       "suspicious": {
-        "noExplicitAny": "off",
-        "noConsole": "off"
-      },
-      "complexity": {
-        "noForEach": "off"
-      },
-      "correctness": {
-        "useExhaustiveDependencies": "warn"
+        "noExplicitAny": "off"
       }
     }
   },
