@@ -27,7 +27,11 @@ ARG BUILD_MODE=prod
 RUN bun run build:${BUILD_MODE}
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
-FROM nginx:alpine AS runtime
+# alpine-slim y no alpine: la variante completa trae los modulos image-filter,
+# xslt, geoip, njs y acme, y con ellos libxml2, libxslt, libgd, tiff, libwebp,
+# freetype, libpng y curl. Aqui solo se sirven ficheros estaticos y ninguno de
+# esos modulos aparece en nginx.conf: 71 paquetes bajan a 21 y 64 MB a 14.
+FROM nginx:alpine-slim AS runtime
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
