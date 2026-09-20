@@ -1,37 +1,25 @@
-# Dependencies
+# Dependencias
 node_modules
-.pnp
-.pnp.js
 
-# Local env files
+# Entorno (los secretos NUNCA se versionan; example.env documenta las claves)
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
 backend/.env
 
-# Build outputs
-.next/
-out/
+# Salidas de build
 build
 dist
 .turbo
 
-# Testing
-coverage
-
 # Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+*.log
 
-# Editor / OS
+# Editor / SO
 .DS_Store
-*.pem
-.theia
+Thumbs.db
 .vscode
-!.vscode/settings.json
+.idea
+*.pem
 
 # Agentes / herramientas
 .claude

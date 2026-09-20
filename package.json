@@ -2,8 +2,9 @@
   "name": "app-base",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "bun@1.3.9",
+  "packageManager": "bun@1.4.0",
   "engines": {
+    "bun": ">=1.4.0",
     "node": ">=22"
   },
   "workspaces": [
