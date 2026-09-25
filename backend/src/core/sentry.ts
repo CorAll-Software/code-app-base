@@ -178,6 +178,16 @@ const superaLimite = (huella: string): boolean => {
     return false;
 };
 
+/** La instancia contestó, pero rechazó el evento. Una vez basta: si rechaza uno
+ *  los rechazará todos, porque el motivo siempre es de configuración. */
+let avisadoRechazo = false;
+const avisarRechazo = (status: number) => {
+    if (avisadoRechazo) return;
+    avisadoRechazo = true;
+    console.warn(`[SENTRY] la instancia rechazó el evento (HTTP ${status}). ` +
+        'Revisa que SENTRY_DSN apunte a un proyecto vivo y con la clave correcta.');
+};
+
 /* ─── Construcción del evento ───────────────────────────────────────────────*/
 
 const idEvento = () => crypto.randomUUID().replace(/-/g, '');
@@ -279,9 +289,20 @@ export const reportarError = (error: unknown, contexto: ContextoError = {}): str
     };
 
     const cuerpo = JSON.stringify(evento);
+
+    /*
+      El `length` del envelope va en BYTES, no en caracteres.
+
+      `cuerpo.length` cuenta unidades UTF-16 y cualquier tilde ocupa dos bytes
+      en UTF-8, así que se quedaba corto: el servidor lee de menos, el JSON le
+      llega truncado y descarta el evento entero. Con los mensajes de este
+      backend en español eso no era un caso raro sino el normal.
+    */
+    const longitud = Buffer.byteLength(cuerpo, 'utf8');
+
     const envelope =
         JSON.stringify({ event_id: eventId, sent_at: new Date().toISOString() }) + '\n' +
-        JSON.stringify({ type: 'event', content_type: 'application/json', length: cuerpo.length }) + '\n' +
+        JSON.stringify({ type: 'event', content_type: 'application/json', length: longitud }) + '\n' +
         cuerpo + '\n';
 
     // Fuego y olvido, con tope: la respuesta del usuario no espera a esto.
@@ -290,6 +311,11 @@ export const reportarError = (error: unknown, contexto: ContextoError = {}): str
         headers: { 'Content-Type': 'application/x-sentry-envelope' },
         body: envelope,
         signal: AbortSignal.timeout(configServer.sentry.timeoutMs),
+    }).then((res) => {
+        // Un rechazo de la instancia (clave equivocada, proyecto inexistente,
+        // envelope mal formado) llega como 4xx, no como excepción: sin esto se
+        // vería exactamente igual que un envío correcto.
+        if (!res.ok) avisarRechazo(res.status);
     }).catch((e) => {
         // Si la bitácora está caída no podemos avisar… a la bitácora.
         console.warn('[SENTRY] no se pudo enviar el evento:', e?.message ?? e);
