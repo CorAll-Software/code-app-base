@@ -2,7 +2,8 @@
 
 interface Window {
     _isMobile: boolean
-    _buildInfo: {
+    /** Sello del build. Sin `<meta build-version>` (dev) no existe. */
+    _buildInfo?: {
         code: string
         device: string
         datetime: number

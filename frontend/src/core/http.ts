@@ -203,18 +203,22 @@ const request = async <T>(config: RequestConfig): Promise<T> => {
         la aplicación funcionando: si entrara en la bitácora, la llenaría de
         cosas que nadie va a arreglar y dejaríamos de mirarla.
 
-        Los 4xx se marcan como esperados porque el valor rechazado viaja hasta
-        quien llamó, y si alguien olvida el `.catch` acabaría como
-        `unhandledrejection`. La marca hace que `beforeSend` lo descarte.
+        El cuerpo rechazado se marca SIEMPRE —también en los 5xx— porque viaja
+        hasta quien llamó, y si alguien olvida el `.catch` acabaría como
+        `unhandledrejection`. La marca hace que `beforeSend` lo descarte: el
+        5xx ya lo reportamos aquí arriba con su contexto, y el cuerpo suelto
+        solo sería el mismo fallo contado dos veces.
       */
       if (res.status >= 500) {
         reportarErrorApi(
           new Error(`${method} ${url} → ${res.status}: ${errorMessage}`),
           { endpoint: url, metodo: method, status: res.status }
         );
-      } else if (json && typeof json === 'object') {
-        // Solo si hay dónde colgar la marca: un cuerpo que parsea a texto,
-        // número o null no admite propiedades y haría reventar la petición.
+      }
+
+      // Solo si hay dónde colgar la marca: un cuerpo que parsea a texto,
+      // número o null no admite propiedades y haría reventar la petición.
+      if (json && typeof json === 'object') {
         Object.defineProperty(json, '__esperado', { value: true, enumerable: false });
       }
 

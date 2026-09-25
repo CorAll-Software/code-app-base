@@ -1,4 +1,7 @@
 import * as Sentry from '@sentry/react';
+// El nombre sale de package.json —única fuente—, para que al renombrar el
+// proyecto la release de Sentry no se quede con el de la plantilla.
+import { name as NOMBRE_APP } from '../../package.json';
 
 /**
  * Reporte de errores (Sentry, instancia autoalojada).
@@ -49,8 +52,15 @@ const IGNORAR_MENSAJES: (string | RegExp)[] = [
     /The operation was aborted/i,
 ];
 
-/** Dominios desde los que SÍ aceptamos errores: descarta los de extensiones. */
-const URLS_PERMITIDAS = [window.location.origin, window._routeApi].filter(Boolean);
+/**
+ * Orígenes desde los que SÍ aceptamos errores: descarta los de extensiones.
+ *
+ * Ojo, este filtro mira la URL del **script** del stack, no la de la petición:
+ * poner aquí el endpoint del API no serviría de nada. Si algún día los assets
+ * se sirven desde un CDN, su origen tiene que entrar en esta lista o dejarán
+ * de llegar eventos.
+ */
+const URLS_PERMITIDAS = [window.location.origin];
 
 export const initSentry = () => {
     if (!dsn) {
@@ -62,7 +72,14 @@ export const initSentry = () => {
     Sentry.init({
         dsn,
         environment: window._sentryEnvironment,
-        release: `app-base-frontend@${window._buildInfo?.code ?? 'dev'}`,
+        /*
+          Par obligado con `vite.config.ts`: allí se calcula esta MISMA cadena
+          para etiquetar los sourcemaps que se suben a la instancia. Si las dos
+          dejan de coincidir, los mapas quedan colgados de una versión que
+          ningún evento menciona y los stacks vuelven a ser ilegibles —sin que
+          nada falle—. Al tocar esta línea, tocar la de allí.
+        */
+        release: `${NOMBRE_APP}@${window._buildInfo?.code ?? 'dev'}`,
 
         // Solo errores. Nada de tracing, perfilado ni replay: encarecen el
         // bundle, y una instancia autoalojada compatible (GlitchTip, Bugsink…)
