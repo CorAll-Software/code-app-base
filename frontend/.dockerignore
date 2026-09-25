@@ -8,4 +8,13 @@ dist
 npm-debug.log*
 .DS_Store
 coverage
+# Ficheros locales que pueden llevar SENTRY_AUTH_TOKEN: fuera del contexto de
+# build, para que no acaben grabados en una capa de la imagen. El token entra
+# como secreto de BuildKit, no copiándolo.
+.env
 .env.local
+.sentryclirc
+
+# Caché de tsc de la máquina que construye: no sirve dentro de la imagen y una
+# caché ajena puede hacer que tsc se salte comprobaciones.
+*.tsbuildinfo

@@ -6,10 +6,15 @@ node_modules
 .env.local
 backend/.env
 
+# Configuración de sentry-cli: la lee del directorio de trabajo y lleva el
+# token de subida de sourcemaps en `[auth] token=`.
+.sentryclirc
+
 # Salidas de build
 build
 dist
 .turbo
+*.tsbuildinfo
 
 # Logs
 *.log

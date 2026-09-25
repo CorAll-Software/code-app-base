@@ -1,15 +1,25 @@
 # Dependencias
 node_modules
 
-# Entorno: .env.production y .env.qas SÍ se versionan (no llevan secretos);
-# el .env local de cada quien no.
+# Entorno: .env.production y .env.qas SÍ se versionan — solo llevan valores
+# públicos (el DSN, y la URL/org/proyecto de la instancia). El .env local de
+# cada quien NO, y ahora menos: es donde vive SENTRY_AUTH_TOKEN, que autoriza
+# a ESCRIBIR en la instancia.
 .env
 .env.local
 *.local
 
+# Configuración de sentry-cli, que es quien sube los sourcemaps. La lee del
+# directorio de trabajo y lleva el token en `[auth] token=`.
+.sentryclirc
+
 # Salida de build
 dist
 dist-ssr
+
+# Caché incremental de tsc. `tsconfig.node.json` es `composite`, así que lo
+# emite en cuanto se compila ese proyecto: son rutas absolutas de esta máquina.
+*.tsbuildinfo
 
 # Logs
 *.log
