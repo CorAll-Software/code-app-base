@@ -24,7 +24,26 @@ FROM deps AS build
 WORKDIR /app
 COPY . .
 ARG BUILD_MODE=prod
-RUN bun run build:${BUILD_MODE}
+
+# Sentry · subida de sourcemaps. Sin ella los stacks del frontend llegan a la
+# bitácora minificados e ilegibles.
+#
+# SENTRY_URL, SENTRY_ORG y SENTRY_PROJECT salen del `.env` del modo, igual que
+# el resto de la configuración. Aquí solo entra el token, porque es lo único
+# que NO puede vivir en un fichero versionado: autoriza a ESCRIBIR en la
+# instancia. Y entra como secreto de BuildKit, no como ARG, para no quedar
+# grabado en una capa ni en el historial de la imagen:
+#
+#     docker build -f frontend/Dockerfile frontend/ \
+#       --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN
+#
+# Sin el secreto no se sube nada y el build sigue igual. Con él —y con las
+# otras tres puestas— un fallo de subida ROMPE el build a propósito (ver
+# vite.config.ts): si desde aquí no se alcanza la instancia, no pases el
+# secreto en vez de tragarte el error.
+RUN --mount=type=secret,id=sentry_auth_token \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
+    bun run build:${BUILD_MODE}
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
 # alpine-slim y no alpine: la variante completa trae los modulos image-filter,
