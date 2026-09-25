@@ -78,10 +78,27 @@ export async function execProcedure(
     const placeholders = finalArgs.map((_, i) => `$${i + 1}`).join(', ')
 
     const startTime = Date.now()
-    let lastError: any = null
 
-    // Intentar ejecutar la consulta con reintentos
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Al menos una vuelta: con `maxRetries: 0` el bucle no se ejecutaba y la
+    // llamada salía con un error inventado y sin reportar nada.
+    const intentos = Math.max(1, maxRetries)
+
+    /*
+      Bucle sin condición de salida a propósito: TODA salida de aquí es un
+      `return`, y así no hay cola después del bucle.
+
+      Con un `for (attempt <= intentos)` TypeScript no puede deducir que la
+      última vuelta nunca hace `continue`, y exige un retorno al final que en
+      realidad es inalcanzable. Eso obligaba a elegir entre un error fabricado
+      (`{ error: "null" }`, mudo) o un `throw` — y esta función no lanza nunca:
+      devuelve `{ error }` y ningún llamador la envuelve en `try`.
+
+      Lo que acota el bucle es el `attempt < intentos` de abajo: cuando ya no
+      quedan intentos, el catch devuelve en vez de continuar.
+    */
+    let attempt = 0
+    while (true) {
+        attempt++
         try {
             const funcToExec = `SELECT * FROM ${procedureName}(${placeholders}) as output`
             const queryResult = await db.unsafe(funcToExec, finalArgs)
@@ -97,7 +114,6 @@ export async function execProcedure(
             return { result }
 
         } catch (error) {
-            lastError = error
             const errorMsg = error instanceof Error ? error.message : String(error)
 
             // Verificar si es un error de timeout
@@ -105,8 +121,8 @@ export async function execProcedure(
                 errorMsg.toLowerCase().includes('timed out') ||
                 errorMsg.toLowerCase().includes('connection timeout')
 
-            if (isTimeout && attempt < maxRetries) {
-                console.warn(`[DB] Timeout en ${procedureName} (intento ${attempt}/${maxRetries}), reintentando...`)
+            if (isTimeout && attempt < intentos) {
+                console.warn(`[DB] Timeout en ${procedureName} (intento ${attempt}/${intentos}), reintentando...`)
                 // Esperar un poco antes de reintentar (100ms * número de intento)
                 await new Promise(resolve => setTimeout(resolve, 100 * attempt))
                 continue
@@ -118,11 +134,6 @@ export async function execProcedure(
             return { error: errorMsg }
         }
     }
-
-    // Si llegamos aquí, se agotaron todos los reintentos
-    const errorMsg = lastError instanceof Error ? lastError.message : String(lastError)
-    console.error(`[DB] Error en ${procedureName} después de ${maxRetries} intentos:`, errorMsg)
-    return { error: errorMsg }
 }
 
 // Función para cerrar la conexión cuando sea necesario
