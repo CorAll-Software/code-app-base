@@ -6,6 +6,7 @@ import { NotFoundPage } from "./layouts/404.page";
 import { Home } from "./layouts/home.page";
 import { ProfilePage } from "./layouts/profile.page";
 import { PermissionRoute } from "./layouts/permission-route";
+import { RouteErrorBoundary } from "./layouts/error-boundary";
 import { PERMISSIONS, type PermisoSlug } from "./core/permissions.constants";
 
 type LazyLoad = () => Promise<{ default: ComponentType }>;
@@ -86,9 +87,25 @@ const moduleRouteObjects: RouteObject[] = APP_ROUTES.map((route) => {
   };
 });
 
+/*
+  Pantalla de fallo para CADA ruta.
+
+  El data router atrapa por su cuenta lo que revienta dentro de una ruta —el
+  render de la página y, sobre todo, el `lazy()` que descarga su chunk— y sin
+  `errorElement` lo pinta con su propia pantalla de depuración, sin relanzarlo:
+  no llegaba ni al ErrorBoundary de `main.tsx` ni a Sentry.
+
+  Colgado de cada hija en vez de solo de la raíz, el layout sigue en pie y el
+  usuario puede irse a otra pantalla, que es lo que limpia el error.
+*/
+const conPantallaDeError = (route: RouteObject): RouteObject => ({
+  ...route,
+  errorElement: <RouteErrorBoundary />,
+});
+
 export const childRoutes: RouteObject[] = [
   { index: true, element: <Home /> },
   ...moduleRouteObjects,
   { path: "profile", element: <ProfilePage /> },
   { path: "*", element: <NotFoundPage /> },
-];
+].map(conPantallaDeError);

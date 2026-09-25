@@ -20,7 +20,7 @@ import { AuthProvider } from '@src/providers/auth-provider'
 import locale_es from 'dayjs/locale/es'
 import { BRAND } from '@src/core/color'
 import { initSentry } from '@src/core/sentry'
-import { AppErrorBoundary } from '@src/layouts/error-boundary'
+import { AppErrorBoundary, RouteErrorBoundary } from '@src/layouts/error-boundary'
 dayjs.locale(locale_es)
 
 // Antes de montar nada: así un fallo durante el primer render ya se captura.
@@ -28,8 +28,16 @@ initSentry()
 
 // El layout autenticado (App) es el elemento raíz; los módulos son rutas hijas
 // con `lazy`, de modo que useNavigation() expone el estado de carga del chunk.
+// `errorElement` en la raíz cubre lo que revienta en el propio layout `App`;
+// cada ruta hija lleva el suyo (ver router.config.tsx) para que un fallo de
+// pantalla no se lleve por delante el menú.
 const router = createBrowserRouter([
-  { path: '/', element: <App />, children: childRoutes },
+  {
+    path: '/',
+    element: <App />,
+    errorElement: <RouteErrorBoundary />,
+    children: childRoutes,
+  },
 ])
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
