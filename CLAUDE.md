@@ -51,8 +51,16 @@ crean copiándolo (ver `docs/checklist-nuevo-proyecto.md`).
   `RAISE EXCEPTION` de plpgsql (`P0001`) — son negocio, no defectos. Los fallos
   de BD se capturan en `execProcedure`, que es donde el error de pg aún conserva
   su código: los endpoints los convierten en 400 y nunca llegan al `onError`.
+  Los sourcemaps del frontend los sube `@sentry/vite-plugin` al construir:
+  `SENTRY_URL`/`SENTRY_ORG`/`SENTRY_PROJECT` en los `.env` del frontend y
+  `SENTRY_AUTH_TOKEN` por fuera (ese **sí** es secreto, al revés que el DSN);
+  faltando alguna, no sube nada y el build sigue. Bun carga `frontend/.env` en
+  `process.env`, que gana sobre `.env.production` en `loadEnv` — por eso las
+  tres públicas van comentadas en el `.env`.
 - Frontend: HTTP solo vía `core/http.ts` (GET/POST tipados con toasts);
-  rutas en `router.config.tsx` (lazy) + menú en `menu.config.tsx`, ambos con `slug`.
+  rutas en `router.config.tsx` (lazy) + menú en `menu.config.tsx`, ambos con
+  `slug`. Cada ruta lleva `errorElement`: el data router atrapa por su cuenta
+  lo que revienta dentro de una ruta y sin él no llegaría a Sentry.
 - Los servicios NUNCA rechazan: devuelven centinela (`[]` / `null` / `false`) y
   **el llamador lo comprueba antes de tocar el estado**. Un `await` que no lanzó
   no significa que haya funcionado (§4 de `docs/practicas.md`).

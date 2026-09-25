@@ -48,6 +48,25 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
     versionan, así que basta ponerlo una vez.
   - Vacío = desactivado. En `localhost` nunca se activa, y el backend tampoco
     reporta con `SENTRY_ENVIRONMENT=development`.
+- [ ] **Sourcemaps del frontend** (opcional, pero sin ellos los stacks del
+      navegador llegan minificados e ilegibles). Los sube `@sentry/vite-plugin`
+      al construir; ver la sección de despliegue para el `docker build`.
+  - Cuatro variables, todas o ninguna. Si falta alguna, el build lo dice por
+    consola y sigue sin subir nada. Ninguna lleva prefijo `VITE_`: eso las
+    inlinearía en el bundle.
+    - `SENTRY_URL`, `SENTRY_ORG`, `SENTRY_PROJECT` → en `frontend/.env.production`
+      y `.env.qas`, junto al DSN. Son tan públicas como él.
+    - `SENTRY_AUTH_TOKEN` → **es un secreto**, al revés que el DSN: autoriza a
+      ESCRIBIR en la instancia. En local va en `frontend/.env` (gitignore); al
+      desplegar, como secreto del build (ver sección 5).
+  - **Ojo con la precedencia de los `.env` bajo Bun.** Bun carga `frontend/.env`
+    en `process.env` al arrancar, y `loadEnv` de Vite deja que `process.env` gane
+    sobre los ficheros. Una clave presente en el `.env` local le gana a la de
+    `.env.production` **aunque construyas con `--mode production`**. Por eso las
+    tres van comentadas en el `.env`. En Docker no aplica: `.env` está en
+    `.dockerignore`.
+  - Los `.map` **no se publican**: se suben a la instancia y se borran del
+    `dist`. Se emparejan por los *debug ids* que el plugin inyecta en el bundle.
 - [ ] Revisar `timeZone` en `backend/src/config.ts` (por defecto `America/Lima`).
 
 ## 4. Base de datos
@@ -118,14 +137,29 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
       Sale en `GET /api/` y en cada evento de Sentry — es lo que identifica de
       qué despliegue salió un fallo. Subir el número semántico sigue siendo
       manual, en `backend/package.json`.
-- [ ] `SENTRY_DSN` entre las variables de entorno del servicio (no como build
-      arg: se lee al arrancar). Comprobar en los logs del contenedor la línea
-      `[SENTRY] Reporte de errores ACTIVO`; si dice `DESACTIVADO`, no reporta.
+- [ ] `SENTRY_DSN` entre las variables de entorno del servicio **del backend**
+      (no como build arg: se lee al arrancar, no al construir — al revés que las
+      variables de sourcemaps del frontend, dos bullets más abajo). Comprobar en
+      los logs del contenedor la línea `[SENTRY] Reporte de errores ACTIVO`; si
+      dice `DESACTIVADO`, no reporta.
 - [ ] `NODE_ENV=production` ya lo fija el `Dockerfile` del **backend**, así que
       el entorno que se ve en Sentry sale bien sin tocar nada. El frontend no
       tiene runtime de Node: se compila y lo sirve `nginx:alpine-slim` con
       `frontend/nginx.conf`, y su entorno sale del `BUILD_MODE` del build
       (`prod` → `.env.production`, `qas` → `.env.qas`).
+- [ ] Sourcemaps del frontend: se suben **durante el build**, no al arrancar.
+      `SENTRY_URL`, `SENTRY_ORG` y `SENTRY_PROJECT` salen del `.env` del modo,
+      como el resto de la configuración; solo el token entra por fuera, como
+      secreto de BuildKit para no quedar grabado en una capa:
+
+      ```bash
+      docker build -f frontend/Dockerfile frontend/ \
+        --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN
+      ```
+
+      Con las cuatro puestas, **un fallo de subida rompe el build a propósito**:
+      lo contrario es desplegar con stacks ilegibles y sin que nada lo recuerde.
+      Si desde el runner no se alcanza la instancia, no pases el secreto.
 
 ## 6. Primer módulo de negocio
 
