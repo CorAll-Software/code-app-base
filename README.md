@@ -21,7 +21,7 @@
 | Backend | Bun + Elysia + PostgreSQL (Bun SQL) + Redis |
 | Frontend | React 19 + TypeScript + Ant Design 6 + Vite + Zustand |
 | Auth | JWT + `Bun.password` (bcrypt) + RBAC en Redis |
-| Storage | S3-compatible (MinIO / AWS S3) |
+| Storage | AWS S3 |
 | Email | Nodemailer |
 | Infra | Docker (Dockerfiles de referencia en `backend/` y `frontend/`) |
 | Monorepo | Bun workspaces + Turborepo |

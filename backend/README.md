@@ -47,7 +47,7 @@ src/
 │   ├── auditoria.ts            # contextoAuditoria() + registrarEvento/Descarga
 │   ├── captcha.guard.ts        # Macro requireCaptcha (Cap, prueba de trabajo)
 │   ├── sentry.ts               # Cliente propio sin dependencias (DSN vacío = off)
-│   ├── s3.ts                   # Storage S3/MinIO (subida privada + URLs firmadas)
+│   ├── s3.ts                   # Storage S3 (subida privada + URLs firmadas)
 │   ├── email/email-service.ts  # Nodemailer
 │   └── permissions.constants.ts# Diccionario de slugs (gemelo del frontend)
 └── modules/

@@ -27,7 +27,7 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
   - `JWT_ACCESS_EXPIRE_IN` / `JWT_REFRESH_EXPIRE_IN` (vida del access token y de
     la sesión; 15 min / 7 días por defecto)
   - `DB_*` (PostgreSQL 18+, se usa `uuidv7()` nativo), `REDIS_URL`
-  - `AWS_*` (S3/MinIO) y `EMAIL_*` si se usan desde el día 1
+  - `AWS_*` (S3) y `EMAIL_*` si se usan desde el día 1
   - `TEAM_NAME` (aparece en correos y UI)
 - [ ] `frontend/.env` ya apunta a localhost; completar `.env.production` / `.env.qas`
       con los dominios reales cuando existan.
