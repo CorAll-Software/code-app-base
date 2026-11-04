@@ -29,8 +29,12 @@ BEGIN
     v_email         := req->>'email';
     v_password_hash := req->>'password_hash';
     v_phone         := req->>'phone';
-    v_enable        := COALESCE((req->>'enable')::BOOLEAN, TRUE);
-    v_status        := COALESCE((req->>'status')::BOOLEAN, TRUE);
+    -- Sin COALESCE aquí: un NULL significa "no viene". El alta lo trata como
+    -- TRUE y la edición conserva el valor actual. Si se rellenara con TRUE de
+    -- entrada, editar sólo el teléfono volvería a habilitar a un usuario
+    -- deshabilitado.
+    v_enable        := (req->>'enable')::BOOLEAN;
+    v_status        := (req->>'status')::BOOLEAN;
     v_dni           := req->>'dni';
     v_cargo         := req->>'cargo';
     v_rol_sistema   := req->'rol_sistema';
@@ -58,7 +62,7 @@ BEGIN
             enable, status, dni, cargo, user_cr, token_cr
         ) VALUES (
             v_first_name, v_last_name, v_email, v_password_hash, v_phone,
-            v_enable, v_status, v_dni, v_cargo, v_user_cr, v_token_cr
+            COALESCE(v_enable, TRUE), COALESCE(v_status, TRUE), v_dni, v_cargo, v_user_cr, v_token_cr
         ) RETURNING id INTO v_id;
     ELSE
         UPDATE core.users SET
@@ -67,8 +71,8 @@ BEGIN
             email         = COALESCE(v_email, email),
             password_hash = COALESCE(v_password_hash, password_hash),
             phone         = COALESCE(v_phone, phone),
-            enable        = v_enable,
-            status        = v_status,
+            enable        = COALESCE(v_enable, enable),
+            status        = COALESCE(v_status, status),
             dni           = COALESCE(v_dni, dni),
             cargo         = COALESCE(v_cargo, cargo),
             user_up       = v_user_cr,

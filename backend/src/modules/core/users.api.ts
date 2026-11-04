@@ -36,6 +36,20 @@ function validateUserFieldLengths(body: Record<string, any>): string | null {
     return null;
 }
 
+// `save_user` hace `(req->>'enable')::BOOLEAN` y lo mismo con `status`, que
+// también aceptan texto ("false", "f", "0"...). Se normalizan aquí a booleano
+// antes de llamar al SP para que la base y el cierre de sesiones decidan con el
+// mismo valor: si no, un "f" deshabilitaría al usuario sin revocar sus sesiones.
+// `undefined` = no viene; `null` = viene pero no se reconoce.
+function parseBool(v: unknown): boolean | null | undefined {
+    if (v === undefined || v === null) return undefined;
+    if (typeof v === 'boolean') return v;
+    const s = String(v).trim().toLowerCase();
+    if (['true', 't', '1', 'yes', 'y', 'on'].includes(s)) return true;
+    if (['false', 'f', '0', 'no', 'n', 'off'].includes(s)) return false;
+    return null;
+}
+
 const enrichWithFileUrl = async (data: any) => {
     if (!data) return data;
     const enrich = async (item: any) => {
@@ -123,6 +137,15 @@ export const UsersApi = new Elysia()
         }
         Object.assign(data, contextoAuditoria(user, headers, `PUT ${path}`));
 
+        for (const campo of ['enable', 'status'] as const) {
+            const valor = parseBool(data[campo]);
+            if (valor === null) {
+                set.status = 400;
+                return { message: `Valor de ${campo} no válido` };
+            }
+            data[campo] = valor;
+        }
+
         // Parsear campos complejos
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
 
@@ -134,7 +157,7 @@ export const UsersApi = new Elysia()
 
         // Si se deshabilita el usuario, revocar sus sesiones (no solo el socket:
         // el access token seguiría siendo válido hasta expirar).
-        if (data.enable === false || data.status === false || data.status === 'false') {
+        if (data.enable === false || data.status === false) {
             const closed = await revokeUserSessions(Number(data.id), {
                 reason: 'ADMIN',
                 actorUserId: (user as any).id,
