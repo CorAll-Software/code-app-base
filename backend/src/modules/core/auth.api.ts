@@ -96,7 +96,7 @@ const verificarContrasenaActual = async (
         return { code: 400, message: 'No se pudo verificar la identidad del usuario' };
     }
 
-    if (Bun.password.verifySync(password, String(hash))) {
+    if (await Bun.password.verify(password, String(hash))) {
         await userStore.clearPasswordFailures(user.id);
         return null;
     }
@@ -129,6 +129,9 @@ const verificarContrasenaActual = async (
 
     return { code: 401, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
 };
+
+/** Largo máximo de una contraseña: hashear textos enormes solo sirve para gastar CPU. */
+const PASSWORD_MAX = 128;
 
 const path = '/auth'
 
@@ -171,7 +174,9 @@ export const AuthApi = new Elysia()
         }
 
         const storedPassword = String(credentials.password_hash)
-        const isPasswordValid = Bun.password.verifySync(password, storedPassword)
+        // Asíncrono: el verify se calcula fuera del hilo principal y no frena
+        // al resto de peticiones mientras tanto.
+        const isPasswordValid = await Bun.password.verify(password, storedPassword)
 
         if (!isPasswordValid) {
             await loginFallido('Contraseña incorrecta', credentials.id)
@@ -213,8 +218,8 @@ export const AuthApi = new Elysia()
     }, {
         requireCaptcha: true,
         body: t.Object({
-            email: t.String(),
-            password: t.String(),
+            email: t.String({ maxLength: 150 }),
+            password: t.String({ maxLength: PASSWORD_MAX }),
             ...captchaBodyField
         })
     })
@@ -406,7 +411,7 @@ export const AuthApi = new Elysia()
             requirePermission: null,
             body: t.Object({
                 // Obligatoria solo cuando cambia el correo.
-                currentPassword: t.Optional(t.String()),
+                currentPassword: t.Optional(t.String({ maxLength: PASSWORD_MAX })),
                 names: t.Optional(t.String()),
                 first_name: t.Optional(t.String()),
                 last_name: t.Optional(t.String()),
@@ -428,7 +433,7 @@ export const AuthApi = new Elysia()
             }
 
             // 2. Hashear y actualizar la nueva contraseña
-            const password_hash = Bun.password.hashSync(newPassword);
+            const password_hash = await Bun.password.hash(newPassword);
 
             const result = await execProcedure('core.update_user_password', [{
                 id: (user as any).id,
@@ -455,8 +460,8 @@ export const AuthApi = new Elysia()
         }, {
             requirePermission: null,
             body: t.Object({
-                currentPassword: t.String(),
-                newPassword: t.String({ minLength: 8 })
+                currentPassword: t.String({ maxLength: PASSWORD_MAX }),
+                newPassword: t.String({ minLength: 8, maxLength: PASSWORD_MAX })
             })
         })
         /** Sesiones activas del usuario; `current: true` marca la de este token. */
@@ -552,7 +557,19 @@ export const AuthApi = new Elysia()
     })
     .post(`${path}/reset-password`, async ({ body, status, headers }) => {
         const { email, recovery_code, new_password } = body as any;
-        const password_hash = Bun.password.hashSync(new_password);
+
+        // El código se comprueba ANTES de hashear: el hash es lo caro, y antes
+        // se calculaba para cualquier petición anónima, con código o sin él.
+        // Un fallo aquí cuenta como intento, igual que en validate.
+        const check = await execProcedure('core.validate_recovery_code', [{ email, recovery_code }]);
+        if (check.error) {
+            return status(500, { message: 'Error al restablecer la contraseña. Por favor, intenta más tarde.' });
+        }
+        if (check.result?.error) {
+            return status(400, { message: 'Sesión de recuperación inválida o expirada' });
+        }
+
+        const password_hash = await Bun.password.hash(new_password);
 
         const result = await execProcedure('core.reset_password_with_code', [{
             email,
@@ -592,7 +609,7 @@ export const AuthApi = new Elysia()
         body: t.Object({
             email: t.String(),
             recovery_code: t.String({ minLength: 6, maxLength: 6 }),
-            new_password: t.String({ minLength: 8 }),
+            new_password: t.String({ minLength: 8, maxLength: PASSWORD_MAX }),
             ...captchaBodyField
         })
     })

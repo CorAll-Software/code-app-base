@@ -9,8 +9,6 @@ import { PERMISSIONS } from '@core/permissions.constants';
 import { buildKeyObject, getS3ObjectUrl, uploadToS3Private } from '@core/s3';
 import { configServer } from '@/config';
 
-const { hashSync } = Bun.password;
-
 const path = '/users';
 
 const USER_FIELD_LIMITS: Record<string, { label: string; max: number }> = {
@@ -126,7 +124,7 @@ export const UsersApi = new Elysia()
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
 
         if (data.password) {
-            data.password_hash = hashSync(data.password);
+            data.password_hash = await Bun.password.hash(data.password);
             delete data.password;
         }
         const result = await execProcedure('core.save_user', [data]);
@@ -141,7 +139,7 @@ export const UsersApi = new Elysia()
             first_name: t.String(),
             last_name: t.String(),
             email: t.String(),
-            password: t.Optional(t.String()),
+            password: t.Optional(t.String({ minLength: 8, maxLength: 128 })),
             phone: t.Optional(t.String()),
             dni: t.Optional(t.String()),
             cargo: t.Optional(t.String()),
@@ -296,7 +294,7 @@ export const UsersApi = new Elysia()
     })
     .put(`${path}/change-password`, async ({ body, set, headers, user }) => {
         const { id, password } = body as any;
-        const password_hash = hashSync(password);
+        const password_hash = await Bun.password.hash(password);
         const result = await execProcedure('core.update_user_password', [{
             id,
             password_hash,
@@ -315,5 +313,10 @@ export const UsersApi = new Elysia()
         notifyUserClose(id)
         return result.result;
     }, {
-        requirePermission: PERMISSIONS.USUARIOS.EDIT
+        requirePermission: PERMISSIONS.USUARIOS.EDIT,
+        // Sin esquema, un body sin `password` reventaba en el hash con un 500.
+        body: t.Object({
+            id: t.Numeric(),
+            password: t.String({ minLength: 8, maxLength: 128 }),
+        })
     });
