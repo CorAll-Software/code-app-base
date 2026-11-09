@@ -124,6 +124,11 @@ A partir de ahora los avisos y los códigos de recuperación llegarán a esa dir
     private getRecoveryEmailTemplate(code: string, names: string, _domain: string): string {
         const primaryColor = '#b11820';
         const logoUrl = `cid:${EMAIL_LOGO_CID}`;
+        // El nombre lo escribe el propio usuario (o quien tenga usuarios.edit):
+        // sin escapar, un enlace o un aviso falso guardado en el nombre llegaba
+        // dentro de un correo legítimo de la organización, junto al PIN.
+        const nombre = escapeHtml(names);
+        const team = escapeHtml(this.team);
 
         return `
         <!DOCTYPE html>
@@ -131,7 +136,7 @@ A partir de ahora los avisos y los códigos de recuperación llegarán a esa dir
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Recuperación de Contraseña - ${this.team}</title>
+            <title>Recuperación de Contraseña - ${team}</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
                 body { 
@@ -153,14 +158,14 @@ A partir de ahora los avisos y los códigos de recuperación llegarán a esa dir
         <body>
             <div class="container">
                 <div class="header">
-                    <img src="${logoUrl}" alt="${this.team}" class="logo">
+                    <img src="${logoUrl}" alt="${team}" class="logo">
                 </div>
                 
                 <div class="content">
                     <h2 class="title">Recuperación de Acceso</h2>
                     
                     <p style="color: #595959; font-size: 15px; margin-bottom: 30px;">
-                        Hola, <strong>${names}</strong>. Hemos recibido tu solicitud de cambio de contraseña.
+                        Hola, <strong>${nombre}</strong>. Hemos recibido tu solicitud de cambio de contraseña.
                         Usa el siguiente PIN de seguridad:
                     </p>
                     
@@ -178,7 +183,7 @@ A partir de ahora los avisos y los códigos de recuperación llegarán a esa dir
                 </div>
                 
                 <div class="footer">
-                    <p style="margin-top: 0;">© ${new Date().getFullYear()} ${this.team}. Todos los derechos reservados.</p>
+                    <p style="margin-top: 0;">© ${new Date().getFullYear()} ${team}. Todos los derechos reservados.</p>
                 </div>
             </div>
         </body>
