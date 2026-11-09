@@ -39,24 +39,40 @@ AS $function$
 
         _names := TRIM(CONCAT_WS(' ', _first_name, _last_name));
 
-        -- Código de 6 dígitos. RANDOM() no es criptográfico (su secuencia se
-        -- puede predecir); gen_random_uuid() sí sale del generador seguro del
-        -- servidor. Los 8 primeros dígitos hex del UUID v4 son todos aleatorios.
-        _recovery_code := LPAD(
-            (('x' || SUBSTR(gen_random_uuid()::TEXT, 1, 8))::BIT(32)::BIGINT % 1000000)::TEXT,
-            6, '0');
+        -- Si ya hay un código vigente para este correo, se reenvía el mismo.
+        -- Antes cada petición anulaba el anterior, y cualquiera que conociera
+        -- el correo podía invalidar una y otra vez el código que el dueño
+        -- acababa de recibir. Reenviarlo no da ventaja a nadie: llega al mismo
+        -- buzón, conserva su vencimiento y sus intentos fallidos.
+        SELECT recovery_code, expires_at
+          INTO _recovery_code, _expires_at
+        FROM core.password_recovery
+        WHERE user_id = _user_id
+          AND email = _email
+          AND used = FALSE
+          AND expires_at > _now
+        ORDER BY created_at DESC
+        LIMIT 1;
 
-        -- El código expira en 15 minutos (900 segundos)
-        _expires_at := _now + 900;
+        IF _recovery_code IS NULL THEN
+            -- Código de 6 dígitos. RANDOM() no es criptográfico (su secuencia se
+            -- puede predecir); gen_random_uuid() sí sale del generador seguro del
+            -- servidor. Los 8 primeros dígitos hex del UUID v4 son todos aleatorios.
+            _recovery_code := LPAD(
+                (('x' || SUBSTR(gen_random_uuid()::TEXT, 1, 8))::BIT(32)::BIGINT % 1000000)::TEXT,
+                6, '0');
 
-        -- Desactivar códigos anteriores de este usuario
-        UPDATE core.password_recovery
-        SET used = TRUE
-        WHERE user_id = _user_id AND used = FALSE;
+            -- El código expira en 15 minutos (900 segundos)
+            _expires_at := _now + 900;
 
-        -- Insertar nuevo código de recuperación
-        INSERT INTO core.password_recovery (user_id, recovery_code, email, expires_at, created_at)
-        VALUES (_user_id, _recovery_code, _email, _expires_at, _now);
+            -- Los anteriores (vencidos o de otra dirección) ya no sirven.
+            UPDATE core.password_recovery
+            SET used = TRUE
+            WHERE user_id = _user_id AND used = FALSE;
+
+            INSERT INTO core.password_recovery (user_id, recovery_code, email, expires_at, created_at)
+            VALUES (_user_id, _recovery_code, _email, _expires_at, _now);
+        END IF;
 
         RETURN json_build_object(
             'success', TRUE,

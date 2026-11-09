@@ -202,20 +202,24 @@ export class UserStore {
         return result || [];
     }
 
-    // ── Intentos de contraseña ───────────────────────────────────────────────
+    // ── Contadores con ventana ───────────────────────────────────────────────
 
     /**
-     * Suma un fallo al contador del usuario y devuelve el total dentro de la
-     * ventana, que empieza con el primer fallo. `null` si Redis no responde:
-     * el llamador decide, y no se le corta el paso a nadie por una caída.
+     * Suma uno al contador `key` y devuelve el total dentro de la ventana, que
+     * empieza con el primer incremento. `null` si Redis no responde: el
+     * llamador decide, y no se le corta el paso a nadie por una caída.
      */
-    async addPasswordFailure(userId: number | string, windowSeconds: number): Promise<number | null> {
-        const key = `user:${userId}:password_failures`;
+    async incrementInWindow(key: string, windowSeconds: number): Promise<number | null> {
         return this.exec(async (c) => {
             const total = await c.incr(key);
             if (total === 1) await c.expire(key, windowSeconds);
             return total;
         });
+    }
+
+    /** Fallos con la contraseña actual (ver verificarContrasenaActual en auth.api.ts). */
+    async addPasswordFailure(userId: number | string, windowSeconds: number): Promise<number | null> {
+        return this.incrementInWindow(`user:${userId}:password_failures`, windowSeconds);
     }
 
     async clearPasswordFailures(userId: number | string) {

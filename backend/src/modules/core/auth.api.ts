@@ -130,6 +130,11 @@ const verificarContrasenaActual = async (
     return { code: 401, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
 };
 
+/** Correos de recuperación por dirección dentro de la ventana. */
+const ENVIOS_RECUPERACION_MAX = 3;
+/** Ventana de los envíos de recuperación: lo que dura un código. */
+const VENTANA_RECUPERACION = 15 * 60;
+
 /** Largo máximo de una contraseña: hashear textos enormes solo sirve para gastar CPU. */
 const PASSWORD_MAX = 128;
 
@@ -526,30 +531,48 @@ export const AuthApi = new Elysia()
         })
     )
 
+    /**
+     * Pide un código de recuperación. Responde SIEMPRE lo mismo, exista o no
+     * la cuenta, y no espera al envío del correo: antes un correo sin cuenta
+     * daba 400 con su propio mensaje y uno con cuenta tardaba lo que el SMTP,
+     * así que se podía averiguar qué correos tienen una cuenta activa.
+     *
+     * Además se limita a ENVIOS_RECUPERACION_MAX por correo cada 15 minutos (lo
+     * que dura un código), cuente o no con cuenta, para que no se pueda llenar
+     * el buzón de nadie. Mientras haya un código vigente se reenvía el mismo
+     * (ver core.request_password_recovery): pedir otro ya no anula el que la
+     * persona acaba de recibir.
+     */
     .post(`${path}/forgot-password`, async ({ body, status }) => {
         const { email } = body as { email: string };
-        const result = await execProcedure('core.request_password_recovery', [{ email }]);
+        const respuesta = { message: 'Si el correo pertenece a una cuenta activa, te enviamos un código de recuperación.' };
 
+        const correo = String(email).trim().toLowerCase();
+        const envios = await userStore.incrementInWindow(`recovery:${correo}`, VENTANA_RECUPERACION);
+        if (envios !== null && envios > ENVIOS_RECUPERACION_MAX) {
+            return respuesta;
+        }
+
+        const result = await execProcedure('core.request_password_recovery', [{ email }]);
         if (result.error) {
             return status(500, { message: 'No se pudo procesar la solicitud en este momento. Por favor, intenta más tarde.' });
         }
 
+        // Sin cuenta activa: misma respuesta, sin correo.
         if (result.result?.error) {
-            return status(400, { message: result.result.error });
+            return respuesta;
         }
 
+        // Sin await: el tiempo del SMTP no debe distinguir este caso. Un fallo
+        // de envío queda en el log (sendRecoveryCode nunca lanza).
         const { recovery_code, names } = result.result;
-        const sent = await emailService.sendRecoveryCode({ email, code: recovery_code, names, domain: configServer.domain });
+        void emailService.sendRecoveryCode({ email, code: recovery_code, names, domain: configServer.domain });
 
-        if (!sent) {
-            return status(500, { message: 'Error al enviar el código de recuperación por correo.' });
-        }
-
-        return { message: 'Código de recuperación enviado' };
+        return respuesta;
     }, {
         requireCaptcha: true,
         body: t.Object({
-            email: t.String(),
+            email: t.String({ maxLength: 150 }),
             ...captchaBodyField
         })
     })

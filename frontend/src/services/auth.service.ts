@@ -35,8 +35,10 @@ const updatePassword = async (params: any) => {
 // Funciones para recuperación de contraseña
 const forgotPassword = async (email: string, capToken?: string) => {
     return POST('auth/forgot-password', {
-        msgSuccess: 'Código de recuperación enviado. Por favor, revisa tu bandeja de entrada o spam.',
-        msgError: 'No se pudo procesar la solicitud. Verifica que el correo ingresado sea correcto o contacta al administrador.',
+        // El backend responde igual exista o no la cuenta (no revela qué
+        // correos están registrados), así que el mensaje tampoco lo afirma.
+        msgSuccess: 'Si el correo pertenece a una cuenta activa, te llegará un código. Revisa tu bandeja de entrada o spam.',
+        msgError: 'No se pudo procesar la solicitud. Por favor, intenta más tarde.',
         params: withCaptcha({ email }, capToken)
     })
         .then(res => {
