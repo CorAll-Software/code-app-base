@@ -160,3 +160,21 @@ export async function testDbConnection(): Promise<IPgResult> {
         return { error: errorMsg }
     }
 }
+
+/** Health check silencioso (sin logs de éxito): `true` si Postgres responde a tiempo. */
+export async function pingDb(timeoutMs = 3000): Promise<boolean> {
+    const db = getSqlInstance()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+        const timeout = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms`)), timeoutMs)
+        })
+        await Promise.race([db.unsafe('SELECT 1'), timeout])
+        return true
+    } catch (error) {
+        console.error('[DB] Health check falló:', error instanceof Error ? error.message : String(error))
+        return false
+    } finally {
+        clearTimeout(timer)
+    }
+}

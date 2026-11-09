@@ -37,17 +37,64 @@ export class UserStore {
         return client;
     }
 
+    /**
+     * Descarta el cliente actual y crea uno nuevo: el mismo efecto que reiniciar
+     * el backend, sin tumbar el proceso. Se usa cuando el cliente queda "zombi"
+     * (autoReconnect agotado o colgado) y deja de responder; sin esto, el login
+     * no vuelve a funcionar hasta reiniciar el servicio.
+     */
+    private resetClient() {
+        console.warn('[Redis] Recreando el cliente Redis');
+        const old = this.client;
+        old.onclose = null;
+        try { old.close(); } catch { }
+        this.client = this.createClient();
+    }
+
+    private withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error(`Timeout de ${ms}ms`)), ms);
+            promise.then(
+                (v) => { clearTimeout(timer); resolve(v); },
+                (e) => { clearTimeout(timer); reject(e); }
+            );
+        });
+    }
+
+    /**
+     * Health check: PING con timeout (con la offline queue activa, un PING sin
+     * conexión esperaría para siempre). Si falla, recrea el cliente para que el
+     * siguiente intento —o la siguiente petición— parta limpio.
+     */
+    async ping(timeoutMs = 2000): Promise<boolean> {
+        try {
+            const result = await this.withTimeout(this.client.ping(), timeoutMs);
+            return result === 'PONG';
+        } catch (error) {
+            console.error('[Redis] Health check falló:', (error as any)?.message ?? error);
+            this.resetClient();
+            return false;
+        }
+    }
+
     private async exec<T>(operation: (client: RedisClient) => Promise<T>, retries = 3): Promise<T | null> {
         for (let i = 0; i < retries; i++) {
             try {
-                return await operation(this.client);
+                // Timeout: con la offline queue, un comando sin conexión
+                // quedaría esperando indefinidamente y colgaría la petición.
+                return await this.withTimeout(operation(this.client), 5000);
             } catch (error) {
                 console.error(`[Redis] Error en intento ${i + 1}:`, error);
                 // Si el cliente quedó desconectado, revivirlo antes de reintentar.
                 if (!this.client.connected) {
                     await this.client.connect().catch(() => { });
                 }
-                if (i === retries - 1) return null;
+                if (i === retries - 1) {
+                    // Reintentos agotados: el cliente probablemente quedó
+                    // inservible; se recrea para que la próxima petición funcione.
+                    this.resetClient();
+                    return null;
+                }
                 // Pequeña espera antes de reintentar
                 await new Promise(resolve => setTimeout(resolve, 100 * (i + 1)));
             }

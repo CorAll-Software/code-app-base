@@ -44,4 +44,12 @@ COPY --from=prerelease /usr/src/app/package.json .
 
 USER bun
 EXPOSE 3000/tcp
+
+# Health check: /api/health hace PING a Redis y SELECT 1 a Postgres (503 si
+# alguno falla). La imagen de bun no trae curl, así que se usa su fetch.
+# Ojo: Docker solo marca el contenedor como unhealthy, no lo reinicia (eso lo
+# hace Swarm/Kubernetes o un sidecar tipo autoheal).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD bun -e "fetch('http://localhost:' + (process.env.PORT || '3000') + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
 ENTRYPOINT [ "bun", "run", "build/main.js" ]

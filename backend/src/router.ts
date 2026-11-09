@@ -1,4 +1,5 @@
-import { testDbConnection } from "@core/db/connection";
+import { pingDb, testDbConnection } from "@core/db/connection";
+import { userStore } from "@core/store";
 import { Elysia } from "elysia";
 import { configServer } from "@/config";
 
@@ -39,8 +40,18 @@ const handleHome = async ({ status }) => {
   };
 };
 
+// Health check (público, sin token): lo consulta el HEALTHCHECK del Dockerfile.
+// 503 si Redis o Postgres no responden: sin Redis no hay sesiones ni permisos.
+const handleHealth = async ({ set }) => {
+  const [redis, db] = await Promise.all([userStore.ping(), pingDb()]);
+  const ok = redis && db;
+  set.status = ok ? 200 : 503;
+  return { status: ok ? "ok" : "error", redis, db, time: Date.now() };
+};
+
 export const routerApi = new Elysia()
   .get("/", handleHome)
+  .get("/health", handleHealth)
 
   // Núcleo
   .use(AuthApi)
