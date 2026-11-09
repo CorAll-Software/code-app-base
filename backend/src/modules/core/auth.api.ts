@@ -264,7 +264,8 @@ export const AuthApi = new Elysia()
             requirePermission: null
         })
         .put(`/update-profile`, async ({ body, headers, set, user }) => {
-            // Retrieve existing user data to avoid overwriting missing fields with NULL
+            // Datos actuales: solo para comparar el correo y para el aviso. No
+            // se reenvían a save_user (ver más abajo).
             const existingResult = await execProcedure('core.get_user_by_id', [{ id: (user as any).id }]);
             if (existingResult.error || !existingResult.result) {
                 set.status = 400;
@@ -295,26 +296,28 @@ export const AuthApi = new Elysia()
                 }
             }
 
-            const data = { ...existingUser, ...cambios };
-            data.id = (user as any).id; // Force updating own profile
-            Object.assign(data, contextoAuditoria(user, headers, `PUT ${path}/update-profile`));
+            // Solo los campos de autoservicio. save_user conserva lo que no
+            // viene (COALESCE), así que no hace falta reenviar el resto. Antes
+            // se reenviaba el registro leído arriba, con `enable`, `status` y
+            // `rol_sistema`. Si un administrador daba de baja o degradaba al
+            // usuario entre esa lectura y esta escritura, la escritura le
+            // devolvía el acceso.
+            const data: Record<string, unknown> = {
+                id: (user as any).id, // siempre el propio perfil
+                email: cambios.email,
+                phone: cambios.phone || cambios.telefono || undefined,
+                dni: cambios.dni,
+                ...contextoAuditoria(user, headers, `PUT ${path}/update-profile`),
+            };
 
-            // Synchronize first_name/last_name/names
-            const bodyAny = body as any;
-            if (bodyAny.names && !bodyAny.first_name) {
-                const parts = bodyAny.names.trim().split(/\s+/);
+            if (cambios.first_name !== undefined || cambios.last_name !== undefined) {
+                data.first_name = cambios.first_name;
+                data.last_name = cambios.last_name;
+            } else if (cambios.names) {
+                const parts = String(cambios.names).trim().split(/\s+/);
                 data.first_name = parts[0] || '';
                 data.last_name = parts.slice(1).join(' ') || '';
-                data.names = bodyAny.names;
-            } else if (!bodyAny.names && (bodyAny.first_name || bodyAny.last_name)) {
-                data.first_name = bodyAny.first_name ?? data.first_name;
-                data.last_name = bodyAny.last_name ?? data.last_name;
-                data.names = `${data.first_name || ''} ${data.last_name || ''}`.trim();
             }
-
-            // Ensure phone and telefono are synchronized
-            data.telefono = (body as any).phone || (body as any).telefono || data.telefono;
-            data.phone = data.telefono;
 
             const result = await execProcedure('core.save_user', [data]);
             if (result.error) {
