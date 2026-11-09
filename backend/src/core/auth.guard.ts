@@ -42,14 +42,17 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
                     // 2. Si el valor es null o undefined, no hacemos nada
                     if (!value) return;
 
-                    // 3. Superusuario (rol de sistema) pasa cualquier restricción
-                    if (user?.isAdmin) return;
-
-                    // 4. Permisos: Redis primero, BD si la caché está fría
+                    // 3. Permisos: Redis primero, BD si la caché está fría.
+                    //    No hay atajo de superusuario leído del token: un rol de
+                    //    sistema ya recibe el catálogo completo en
+                    //    core.get_user_permissions, y esa caché se invalida al
+                    //    cambiar los roles. Con el atajo, a un administrador al
+                    //    que le quitaban el rol le duraba el bypass hasta que
+                    //    vencía su token, y le daba tiempo de devolvérselo.
                     const permissions = (Array.isArray(value) ? value : [value]) as string[];
                     const hasAccess = await userHasAnyPermission(user.id, permissions);
 
-                    // 5. Bloqueo si no tiene el privilegio exacto
+                    // 4. Bloqueo si no tiene el privilegio exacto
                     if (!hasAccess) {
                         // Un intento denegado no toca ninguna fila, así que
                         // ningún trigger lo ve. Es justo el evento que hay que

@@ -59,7 +59,7 @@ const buildAccessToken = (user: any, sessionId: string) => generateAccessToken({
     email: user.email,
     names: user.names,
     telefono: user.telefono,
-    roles: user.roles, // Con `is_system`: de ahí sale el bypass de isAdmin
+    roles: user.roles, // Informativo (UI y bitácora); la autorización no lo usa
     sid: sessionId,
 });
 
