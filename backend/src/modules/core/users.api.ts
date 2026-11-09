@@ -24,6 +24,25 @@ const USER_FIELD_LIMITS: Record<string, { label: string; max: number }> = {
 
 const FOTO_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const FOTO_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const FOTO_EXTENSION: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+};
+
+/**
+ * Tipo real de la imagen según sus primeros bytes, o `null` si no es JPEG, PNG
+ * ni WebP. El `type` del multipart lo declara el cliente y no prueba nada: con
+ * él solo, se podía subir HTML declarado como image/png y llamado `a.html`.
+ */
+async function detectarTipoImagen(file: File): Promise<string | null> {
+    const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const ascii = (desde: number, hasta: number) => String.fromCharCode(...b.slice(desde, hasta));
+    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+    if (b.length >= 8 && b[0] === 0x89 && ascii(1, 4) === 'PNG' && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png';
+    if (b.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+    return null;
+}
 
 function validateUserFieldLengths(body: Record<string, any>): string | null {
     for (const [field, { label, max }] of Object.entries(USER_FIELD_LIMITS)) {
@@ -206,16 +225,20 @@ export const UsersApi = new Elysia()
             set.status = 400;
             return { message: 'Se requiere el campo "foto"' };
         }
-        if (!FOTO_ALLOWED_MIME.includes(foto.type)) {
-            set.status = 400;
-            return { message: 'Solo se permiten imágenes JPEG, PNG o WebP' };
-        }
         if (foto.size > FOTO_MAX_BYTES) {
             set.status = 400;
             return { message: 'La foto no puede superar los 5 MB' };
         }
-        const { file: s3Key, filePath } = buildKeyObject(configServer.s3.paths.userAvatars, foto.name || 'foto.jpg');
-        const uploaded = await uploadToS3Private(filePath, foto);
+        // El tipo sale del contenido, no de lo que declara el cliente, y de él
+        // salen la extensión de la clave y el Content-Type guardado. El nombre
+        // del archivo original ya no interviene.
+        const tipo = await detectarTipoImagen(foto);
+        if (!tipo || !FOTO_ALLOWED_MIME.includes(tipo)) {
+            set.status = 400;
+            return { message: 'Solo se permiten imágenes JPEG, PNG o WebP' };
+        }
+        const { file: s3Key, filePath } = buildKeyObject(configServer.s3.paths.userAvatars, `foto.${FOTO_EXTENSION[tipo]}`);
+        const uploaded = await uploadToS3Private(filePath, foto, tipo);
         if (!uploaded) {
             set.status = 500;
             return { message: 'No se pudo guardar la foto en el storage' };

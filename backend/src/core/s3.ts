@@ -28,8 +28,13 @@ export const s3FileExists = async (key: string): Promise<boolean> => {
     return response.ok
 };
 
-export const uploadToS3Private = async (key: string, data: Buffer | Uint8Array | Blob | string): Promise<boolean> => {
-    const file = client.file(key);
+/**
+ * `type` fija el Content-Type con el que se guarda y se sirve el objeto. Sin
+ * él queda a criterio del runtime (el tipo del Blob o la extensión de la
+ * clave). Para lo que sube un usuario, pasar siempre el tipo ya validado.
+ */
+export const uploadToS3Private = async (key: string, data: Buffer | Uint8Array | Blob | string, type?: string): Promise<boolean> => {
+    const file = client.file(key, type ? { type } : undefined);
     const res = await write(file, data);
     return !!res;
 }
