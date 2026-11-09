@@ -272,7 +272,30 @@ export const AuthApi = new Elysia()
             }
 
             const existingUser = existingResult.result as any;
-            const data = { ...existingUser, ...(body as any) };
+
+            // Cambiar el correo es cambiar a dónde llegan los códigos de
+            // recuperación: con un token robado bastaba para quedarse con la
+            // cuenta para siempre. Se exige la contraseña actual, como al
+            // cambiar la contraseña.
+            const { currentPassword, ...cambios } = body as any;
+            const normalizarCorreo = (correo: unknown) => String(correo ?? '').trim().toLowerCase();
+            const cambiaCorreo = cambios.email !== undefined
+                && normalizarCorreo(cambios.email) !== normalizarCorreo(existingUser.email);
+
+            if (cambiaCorreo) {
+                if (!currentPassword) {
+                    set.status = 400;
+                    return { message: 'Confirma tu contraseña actual para cambiar el correo electrónico.' };
+                }
+                const credentialsResult = await execProcedure('core.get_user_credentials', [{ email: existingUser.email }]);
+                const hash = credentialsResult.result?.password_hash;
+                if (credentialsResult.error || !hash || !Bun.password.verifySync(currentPassword, String(hash))) {
+                    set.status = 401;
+                    return { message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
+                }
+            }
+
+            const data = { ...existingUser, ...cambios };
             data.id = (user as any).id; // Force updating own profile
             Object.assign(data, contextoAuditoria(user, headers, `PUT ${path}/update-profile`));
 
@@ -299,11 +322,22 @@ export const AuthApi = new Elysia()
                 return { message: result.error };
             }
 
+            // Aviso a la dirección anterior: si el cambio no lo hizo su dueño,
+            // es la única forma de que se entere. No bloquea la respuesta.
+            if (cambiaCorreo) {
+                emailService.sendEmailChangedNotice({
+                    email: existingUser.email,
+                    names: existingUser.names,
+                    newEmail: result.result?.email ?? cambios.email,
+                });
+            }
 
             return result.result;
         }, {
             requirePermission: null,
             body: t.Object({
+                // Obligatoria solo cuando cambia el correo.
+                currentPassword: t.Optional(t.String()),
                 names: t.Optional(t.String()),
                 first_name: t.Optional(t.String()),
                 last_name: t.Optional(t.String()),

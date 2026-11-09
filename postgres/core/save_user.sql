@@ -83,6 +83,14 @@ BEGIN
             token_up      = v_token_cr,
             date_up       = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE id = v_id;
+
+        -- Si cambió el correo, los códigos de recuperación pendientes se
+        -- pidieron para la dirección anterior: ya no deben servir.
+        UPDATE core.password_recovery
+        SET used = TRUE
+        WHERE user_id = v_id
+          AND used = FALSE
+          AND email IS DISTINCT FROM (SELECT email FROM core.users WHERE id = v_id);
     END IF;
 
     -- Manejar roles

@@ -32,6 +32,14 @@ interface EmailData {
 const EMAIL_LOGO_PATH = path.resolve(import.meta.dir, '../../../assets/email-logo.png');
 const EMAIL_LOGO_CID = 'email-logo';
 
+/** Escapa un texto para insertarlo en el HTML de un correo. */
+const escapeHtml = (value: unknown): string => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 class EmailService {
 
     private transporter: Transporter | undefined;
@@ -74,6 +82,28 @@ class EmailService {
             return true;
         } catch (error) {
             console.error('Error enviando correo de recuperación:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Avisa a la dirección ANTERIOR de que el correo de la cuenta cambió. Si
+     * no lo hizo el dueño, es la única pista que le queda. Nunca lanza.
+     */
+    async sendEmailChangedNotice({ email, names, newEmail }: { email: string; names: string; newEmail: string }): Promise<boolean> {
+        try {
+            await this.sendEmail({
+                to: email,
+                subject: `Se cambió el correo de tu cuenta - ${this.team}`,
+                html: `<p>Hola, <strong>${escapeHtml(names)}</strong>.</p>
+<p>El correo de tu cuenta en ${escapeHtml(this.team)} se cambió a <strong>${escapeHtml(newEmail)}</strong>.
+A partir de ahora los avisos y los códigos de recuperación llegarán a esa dirección.</p>
+<p>Si no fuiste tú, contacta de inmediato con el administrador del sistema.</p>`,
+                text: `El correo de tu cuenta en ${this.team} se cambió a ${newEmail}. Si no fuiste tú, contacta de inmediato con el administrador del sistema.`,
+            });
+            return true;
+        } catch (error) {
+            console.error('Error enviando el aviso de cambio de correo:', error);
             return false;
         }
     }
