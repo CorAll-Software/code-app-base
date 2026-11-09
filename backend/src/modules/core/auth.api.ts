@@ -133,6 +133,18 @@ const verificarContrasenaActual = async (
 /** Largo máximo de una contraseña: hashear textos enormes solo sirve para gastar CPU. */
 const PASSWORD_MAX = 128;
 
+/**
+ * Hash de una contraseña que nadie conoce, contra el que se compara cuando el
+ * correo no existe. Así el login tarda lo mismo con o sin cuenta y el tiempo
+ * de respuesta no revela qué correos están registrados. Se calcula una vez,
+ * con el mismo algoritmo y coste que los hashes reales.
+ */
+let hashSenuelo: Promise<string> | null = null;
+const getHashSenuelo = () => {
+    hashSenuelo ??= Bun.password.hash(crypto.randomUUID());
+    return hashSenuelo;
+};
+
 const path = '/auth'
 
 export const AuthApi = new Elysia()
@@ -162,25 +174,31 @@ export const AuthApi = new Elysia()
             endpoint: `POST ${path}/login`,
         })
 
+        // Primero la contraseña y después el estado de la cuenta, y siempre
+        // con un hash de por medio (el señuelo si el correo no existe). Antes
+        // una cuenta deshabilitada respondía 403 sin mirar la contraseña, y un
+        // correo inexistente respondía antes que uno real: las dos cosas
+        // dejaban saber qué cuentas existen. El verify es asíncrono para no
+        // bloquear el resto de peticiones mientras calcula.
         const credentials = credentialsResult.result
-        if (!credentials?.id || !credentials?.password_hash) {
+        const existe = !!(credentials?.id && credentials?.password_hash)
+        const hash = existe ? String(credentials.password_hash) : await getHashSenuelo()
+        const isPasswordValid = await Bun.password.verify(password, hash)
+
+        if (!existe) {
             await loginFallido('No existe una cuenta activa con ese correo')
             return status(401, { message: 'Credenciales inválidas' })
         }
 
-        if (credentials.enable === false) {
-            await loginFallido('Cuenta inactiva', credentials.id)
-            return status(403, { message: 'Cuenta inactiva. Contacte al administrador.' })
-        }
-
-        const storedPassword = String(credentials.password_hash)
-        // Asíncrono: el verify se calcula fuera del hilo principal y no frena
-        // al resto de peticiones mientras tanto.
-        const isPasswordValid = await Bun.password.verify(password, storedPassword)
-
         if (!isPasswordValid) {
             await loginFallido('Contraseña incorrecta', credentials.id)
             return status(401, { message: 'Credenciales inválidas' })
+        }
+
+        // Solo quien sabe la contraseña llega a enterarse de que está inactiva.
+        if (credentials.enable === false) {
+            await loginFallido('Cuenta inactiva', credentials.id)
+            return status(403, { message: 'Cuenta inactiva. Contacte al administrador.' })
         }
 
         const userResult = await execProcedure('core.get_user_login_data', [{ id: credentials.id, touch_login: true }])
