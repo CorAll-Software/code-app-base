@@ -62,6 +62,15 @@ const corsOrigins = [
  * definida y, si no, según el esquema de DOMAIN_FRONTEND (https → Secure).
  * Solo un frontend en http:// (desarrollo local) las deja sin Secure.
  */
+/**
+ * Proxies de confianza delante del backend (nginx, traefik, balanceador). Cada
+ * uno agrega a X-Forwarded-For la dirección de quien le habló, así que la ip
+ * real del cliente es la entrada que está TRUSTED_PROXY_HOPS posiciones desde
+ * la derecha. Lo que hay más a la izquierda lo pudo escribir el cliente. Con 0
+ * (backend expuesto directo) no se confía en ninguna cabecera.
+ */
+const trustedProxyHops = Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "1", 10) || 0);
+
 const cookieSecureEnv = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
 const cookieSecure = cookieSecureEnv ? cookieSecureEnv === "true" : !domainFrontend.startsWith("http://");
 
@@ -77,6 +86,7 @@ export const configServer = {
   timeZone: process.env.TZ || "America/Lima",
   port: parseInt(process.env.PORT || "3000", 10),
   domain: domainFrontend,
+  trustedProxyHops,
   cors: {
     origins: corsOrigins,
     /** ¿Este origen (cabecera `Origin`) está en la lista permitida? */

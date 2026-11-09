@@ -1,3 +1,4 @@
+import { configServer } from '@/config';
 import { execProcedure } from './db/connection';
 
 /*
@@ -28,14 +29,36 @@ export type OperacionAuditoria =
     | 'ACCESO_DENEGADO';
 
 /**
+ * Ip del cliente según X-Forwarded-For, contando solo los proxies de confianza
+ * (`TRUSTED_PROXY_HOPS`, ver config.ts). Cada proxy agrega a la DERECHA la
+ * dirección de quien le habló, así que la entrada fiable es la que está a esa
+ * distancia del final. Antes se tomaba la primera, que es justo la que puede
+ * escribir el cliente: cualquiera elegía la ip que quedaba en la bitácora.
+ *
+ * Con 0 proxies, o sin la cabecera, devuelve null: mejor vacía que inventada.
+ * X-Real-IP solo se usa si no hay X-Forwarded-For y hay proxy de confianza,
+ * porque es una cabecera que el proxy fija y el cliente no debería alcanzar.
+ */
+export const ipCliente = (headers: any): string | null => {
+    const saltos = configServer.trustedProxyHops;
+    if (saltos <= 0) return null;
+
+    const cadena = (headers?.['x-forwarded-for'] || '').toString()
+        .split(',').map((p: string) => p.trim()).filter(Boolean);
+    if (cadena.length) {
+        // Si hay menos entradas que proxies, la más a la izquierda es la mejor
+        // que se tiene: la escribió el primer proxy.
+        return cadena[Math.max(0, cadena.length - saltos)] || null;
+    }
+    return (headers?.['x-real-ip'] || '').toString().trim() || null;
+};
+
+/**
  * Ip y user agent de la petición. La base nunca los conoce por su cuenta: son
  * datos de HTTP que solo existen si la ruta se los pasa.
- *
- * `x-forwarded-for` puede traer una cadena de proxies (`cliente, proxy1,
- * proxy2`): interesa el primero, que es el cliente real.
  */
 export const trazas = (headers: any) => ({
-    ip: (headers?.['x-forwarded-for'] || headers?.['x-real-ip'] || '').toString().split(',')[0].trim() || null,
+    ip: ipCliente(headers),
     user_agent: (headers?.['user-agent'] || '').toString() || null,
 });
 
