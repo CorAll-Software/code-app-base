@@ -515,9 +515,10 @@ export const AuthApi = new Elysia()
             return status(400, { message: result.result.error });
         }
 
-        const credentialsResult = await execProcedure('core.get_user_credentials', [{ email }]);
-        const userId = credentialsResult.result?.id;
-
+        // El dueño del código, que es a quien se le cambió la contraseña. Antes
+        // se volvía a buscar por correo, y si dos cuentas lo compartían (con
+        // otras mayúsculas) se cerraban las sesiones de la otra.
+        const userId = result.result?.user_id;
 
         if (userId) {
             // Restablecer contraseña cierra TODAS las sesiones: quien la pidió

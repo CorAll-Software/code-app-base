@@ -81,6 +81,10 @@ Table core.users {
   user_up       integer
   token_up      uuid
   date_up       bigint
+
+  indexes {
+    `lower(email)` [unique, name: 'ux_users_email_activo', note: 'WHERE status = TRUE']
+  }
 }
 
 Table core.roles {

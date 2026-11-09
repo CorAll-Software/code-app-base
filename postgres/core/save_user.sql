@@ -14,6 +14,9 @@ DECLARE
     v_dni           VARCHAR;
     v_cargo         VARCHAR;
     v_rol_sistema   JSON;
+    v_email_final   VARCHAR;
+    v_dni_final     VARCHAR;
+    v_status_final  BOOLEAN;
     v_user_cr       INTEGER;
     v_token_cr      UUID;
     result          json;
@@ -26,7 +29,11 @@ BEGIN
     v_id            := (req->>'id')::INTEGER;
     v_first_name    := req->>'first_name';
     v_last_name     := req->>'last_name';
-    v_email         := req->>'email';
+    -- El correo identifica la cuenta (login, recuperación), y el login lo
+    -- busca sin distinguir mayúsculas. Se guarda normalizado para que
+    -- 'Ana@x.com' y 'ana@x.com' no puedan ser dos cuentas activas distintas.
+    -- Vacío = no viene.
+    v_email         := NULLIF(lower(trim(req->>'email')), '');
     v_password_hash := req->>'password_hash';
     v_phone         := req->>'phone';
     -- Sin COALESCE aquí: un NULL significa "no viene". El alta lo trata como
@@ -45,19 +52,35 @@ BEGIN
     -- sistema (ver core/proteger_usuario_sistema.sql).
     PERFORM core.proteger_usuario_sistema(v_user_cr, NULLIF(v_id, 0), v_rol_sistema);
 
-    -- Validaciones de unicidad
-    IF EXISTS (
-        SELECT 1 FROM core.users
-        WHERE email = v_email AND status = TRUE AND (v_id IS NULL OR id != v_id)
-    ) THEN
-        RAISE EXCEPTION 'Ya existe un usuario activo con este correo electrónico: %', v_email;
+    -- Validaciones de unicidad, con los valores que QUEDARÁN en la fila: en
+    -- una edición lo que no viene se conserva. Comparar solo lo que trae el
+    -- req dejaba restaurar un usuario borrado ({id, status: true}, sin correo)
+    -- aunque otro activo ya usara su correo. El índice ux_users_email_activo
+    -- (core-tables.sql) respalda la regla del correo ante escrituras
+    -- simultáneas.
+    IF v_id IS NULL OR v_id = 0 THEN
+        v_email_final  := v_email;
+        v_dni_final    := v_dni;
+        v_status_final := COALESCE(v_status, TRUE);
+    ELSE
+        SELECT COALESCE(v_email, lower(email)), COALESCE(v_dni, dni), COALESCE(v_status, status)
+          INTO v_email_final, v_dni_final, v_status_final
+        FROM core.users
+        WHERE id = v_id;
     END IF;
 
-    IF v_dni IS NOT NULL AND v_dni != '' AND EXISTS (
+    IF v_status_final AND EXISTS (
         SELECT 1 FROM core.users
-        WHERE dni = v_dni AND status = TRUE AND (v_id IS NULL OR id != v_id)
+        WHERE lower(email) = v_email_final AND status = TRUE AND id != COALESCE(NULLIF(v_id, 0), -1)
     ) THEN
-        RAISE EXCEPTION 'Ya existe un usuario activo con este DNI: %', v_dni;
+        RAISE EXCEPTION 'Ya existe un usuario activo con este correo electrónico: %', v_email_final;
+    END IF;
+
+    IF v_status_final AND v_dni_final IS NOT NULL AND v_dni_final != '' AND EXISTS (
+        SELECT 1 FROM core.users
+        WHERE dni = v_dni_final AND status = TRUE AND id != COALESCE(NULLIF(v_id, 0), -1)
+    ) THEN
+        RAISE EXCEPTION 'Ya existe un usuario activo con este DNI: %', v_dni_final;
     END IF;
 
     IF v_id IS NULL OR v_id = 0 THEN
@@ -90,7 +113,7 @@ BEGIN
         SET used = TRUE
         WHERE user_id = v_id
           AND used = FALSE
-          AND email IS DISTINCT FROM (SELECT email FROM core.users WHERE id = v_id);
+          AND lower(email) IS DISTINCT FROM (SELECT lower(email) FROM core.users WHERE id = v_id);
     END IF;
 
     -- Manejar roles

@@ -19,13 +19,17 @@ AS $function$
         _expires_at    BIGINT;
         _now           BIGINT := EXTRACT(EPOCH FROM NOW())::BIGINT;
     BEGIN
-        _email := NULLIF(TRIM(req->>'email'), '');
+        -- Normalizado como en save_user: el código se guarda con esta forma y
+        -- validar/restablecer lo buscan igual. Antes aquí se comparaba exacto
+        -- y en el login sin mayúsculas, y una variante como 'Ana@x.com' podía
+        -- resolver a otra cuenta.
+        _email := NULLIF(lower(TRIM(req->>'email')), '');
 
         -- Verificar que el email existe y el usuario está activo
         SELECT id, first_name, last_name
           INTO _user_id, _first_name, _last_name
         FROM core.users
-        WHERE email = _email
+        WHERE lower(email) = _email
           AND status = TRUE
           AND enable = TRUE;
 
@@ -125,7 +129,7 @@ AS $function$
         _recovery_code VARCHAR(6);
         _recovery_id   INTEGER;
     BEGIN
-        _email := NULLIF(TRIM(req->>'email'), '');
+        _email := NULLIF(lower(TRIM(req->>'email')), '');
         _recovery_code := NULLIF(TRIM(req->>'recovery_code'), '');
 
         _recovery_id := core.check_recovery_code(_email, _recovery_code);
@@ -158,7 +162,7 @@ AS $function$
         -- El autor se declara más abajo, al resolver el usuario.
         PERFORM auditoria.contexto(req);
 
-        _email         := NULLIF(TRIM(req->>'email'), '');
+        _email         := NULLIF(lower(TRIM(req->>'email')), '');
         _recovery_code := NULLIF(TRIM(req->>'recovery_code'), '');
         _password_hash := NULLIF(TRIM(req->>'password_hash'), '');
 
@@ -190,6 +194,8 @@ AS $function$
             used_at = _now
         WHERE id = _recovery_id;
 
-        RETURN json_build_object('success', TRUE);
+        -- La ruta cierra las sesiones de ESTE usuario: el dueño del código,
+        -- no el que resulte de volver a buscar por correo.
+        RETURN json_build_object('success', TRUE, 'user_id', _user_id);
     END
 $function$;
