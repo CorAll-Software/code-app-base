@@ -38,6 +38,21 @@ if (jwtSecret.length < JWT_SECRET_MIN) {
   );
 }
 
+/**
+ * Orígenes del navegador que pueden llamar a la API con credenciales. Es
+ * DOMAIN_FRONTEND más los que se agreguen en CORS_ORIGINS, separados por comas
+ * (p. ej. el de QAS). Antes se reflejaba cualquier origen con
+ * `credentials: true`, y cualquier página de un dominio hermano podía
+ * renovar la sesión con la cookie del usuario y leer los tokens nuevos.
+ */
+const normalizarOrigen = (origen: string) => origen.trim().replace(/\/+$/, "");
+const domainFrontend = process.env.DOMAIN_FRONTEND || "http://localhost:5004";
+const corsOrigins = [
+  ...new Set(
+    [domainFrontend, ...(process.env.CORS_ORIGINS || "").split(",")].map(normalizarOrigen).filter(Boolean),
+  ),
+];
+
 // Entorno que se reporta a Sentry. El Dockerfile ya exporta NODE_ENV=production,
 // así que un despliegue con Docker queda en "production" sin tocar nada.
 const sentryEnvironment = (process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development").trim();
@@ -49,7 +64,12 @@ export const configServer = {
   team: process.env.TEAM_NAME || "Mi Empresa",
   timeZone: process.env.TZ || "America/Lima",
   port: parseInt(process.env.PORT || "3000", 10),
-  domain: process.env.DOMAIN_FRONTEND || "http://localhost:5004",
+  domain: domainFrontend,
+  cors: {
+    origins: corsOrigins,
+    /** ¿Este origen (cabecera `Origin`) está en la lista permitida? */
+    isAllowed: (origen: string) => corsOrigins.includes(normalizarOrigen(origen)),
+  },
   auth: {
     secret: jwtSecret,
     // Access token (JWT): vida corta, se renueva con el refresh token.

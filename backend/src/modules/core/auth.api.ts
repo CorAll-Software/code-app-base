@@ -156,6 +156,17 @@ export const AuthApi = new Elysia()
      * cuando venció): la credencial es el refresh token, que se rota en cada uso.
      */
     .post(`${path}/refresh`, async ({ body, cookie, headers, status }) => {
+        // El refresh se canjea con la cookie httpOnly, que el navegador manda
+        // también desde páginas de dominios hermanos (SameSite=Lax). CORS impide
+        // que esas páginas lean la respuesta, pero la petición igual rotaría la
+        // sesión. Un navegador siempre manda `Origin` en un POST, así que se
+        // rechaza si no es uno permitido; los clientes que no son navegador no
+        // lo mandan y siguen pudiendo renovar.
+        const origin = headers?.origin
+        if (origin && !configServer.cors.isAllowed(origin)) {
+            return status(403, { message: 'Origen no permitido' })
+        }
+
         const refreshToken = extractRefreshToken(body, cookie)
         if (!refreshToken) {
             return status(401, { message: 'No se ha enviado el refresh token' })
