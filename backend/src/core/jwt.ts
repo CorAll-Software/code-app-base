@@ -66,7 +66,7 @@ export const validateToken = async (headers: any, cookie?: any) => {
     try {
         const res = jwt.verify(token, secret, { algorithms: ['HS256'] }) as JwtPayload
 
-        if (!res.sid || !(await isSessionActive(res.sid))) {
+        if (!res.sid || res.id == null || !(await isSessionActive(res.sid, res.id))) {
             return { error: 'La sesión fue cerrada. Vuelve a iniciar sesión.', status: 401 }
         }
 

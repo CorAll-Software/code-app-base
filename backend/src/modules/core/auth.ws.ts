@@ -69,7 +69,7 @@ export const AuthWs = new Elysia()
             try {
                 // Verificar token y que la sesión siga viva
                 const claims = await verifyToken(token)
-                if (!claims?.sid || !(await isSessionActive(claims.sid))) {
+                if (!claims?.sid || claims.id == null || !(await isSessionActive(claims.sid, claims.id))) {
                     return ws.terminate()
                 }
 

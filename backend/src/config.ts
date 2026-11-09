@@ -23,6 +23,21 @@ const sello = typeof __SELLO_BUILD__ !== "undefined" ? __SELLO_BUILD__ : SELLO_S
 
 const version = `${pkg.version}+${sello}`;
 
+/**
+ * Secreto con el que se firman los access tokens. Es obligatorio y no tiene
+ * valor por defecto: con uno conocido (el viejo "default_secret") cualquiera
+ * podía firmarse un token de Administrador. Se exige un mínimo de 32
+ * caracteres para que no se pueda adivinar por fuerza bruta. Generar uno con:
+ *   bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ */
+const JWT_SECRET_MIN = 32;
+const jwtSecret = (process.env.JWT_SECRET || "").trim();
+if (jwtSecret.length < JWT_SECRET_MIN) {
+  throw new Error(
+    `JWT_SECRET no está definido o tiene menos de ${JWT_SECRET_MIN} caracteres. El backend no arranca sin un secreto fuerte.`,
+  );
+}
+
 // Entorno que se reporta a Sentry. El Dockerfile ya exporta NODE_ENV=production,
 // así que un despliegue con Docker queda en "production" sin tocar nada.
 const sentryEnvironment = (process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development").trim();
@@ -36,7 +51,7 @@ export const configServer = {
   port: parseInt(process.env.PORT || "3000", 10),
   domain: process.env.DOMAIN_FRONTEND || "http://localhost:5004",
   auth: {
-    secret: process.env.JWT_SECRET || "default_secret",
+    secret: jwtSecret,
     // Access token (JWT): vida corta, se renueva con el refresh token.
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRE_IN ? parseInt(process.env.JWT_ACCESS_EXPIRE_IN, 10) : 15 * 60, // 15 min por defecto
     // Sesión / refresh token rotativo: se extiende en cada renovación.

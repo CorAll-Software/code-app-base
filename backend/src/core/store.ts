@@ -162,12 +162,15 @@ export class UserStore {
         });
     }
 
-    /** `true` solo si Redis confirma la sesión; `false` obliga a verificar en BD. */
-    async isSessionCached(sessionId: string): Promise<boolean> {
+    /**
+     * Dueño de la sesión según Redis, o `null` si no está en caché (y entonces
+     * hay que verificar en BD).
+     */
+    async getSessionUser(sessionId: string): Promise<string | null> {
         const result = await this.exec(async (c) => {
-            return await c.exists(`session:${sessionId}`);
+            return await c.get(`session:${sessionId}`);
         });
-        return !!result;
+        return result ?? null;
     }
 
     async removeSession(sessionId: string, userId?: number | string) {
