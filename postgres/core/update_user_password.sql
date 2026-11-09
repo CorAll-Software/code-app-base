@@ -24,6 +24,10 @@ BEGIN
         RETURN json_build_object('error', 'ID y password_hash son requeridos');
     END IF;
 
+    -- Cambiarle la contraseña al administrador raíz es quedarse con su cuenta:
+    -- solo otro usuario de sistema puede (ver core/proteger_usuario_sistema.sql).
+    PERFORM core.proteger_usuario_sistema(v_user_cr, v_id);
+
     UPDATE core.users
     SET password_hash = v_password_hash,
         user_up = COALESCE(v_user_cr, v_id),

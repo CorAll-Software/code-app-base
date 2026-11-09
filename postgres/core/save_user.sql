@@ -41,6 +41,10 @@ BEGIN
     v_user_cr       := (req->>'user_cr')::INTEGER;
     v_token_cr      := (req->>'token_cr')::UUID;
 
+    -- Un usuario de sistema, o un rol de sistema, solo lo toca otro usuario de
+    -- sistema (ver core/proteger_usuario_sistema.sql).
+    PERFORM core.proteger_usuario_sistema(v_user_cr, NULLIF(v_id, 0), v_rol_sistema);
+
     -- Validaciones de unicidad
     IF EXISTS (
         SELECT 1 FROM core.users
