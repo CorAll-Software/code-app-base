@@ -147,6 +147,9 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
       tiene runtime de Node: se compila y lo sirve `nginx:alpine-slim` con
       `frontend/nginx.conf`, y su entorno sale del `BUILD_MODE` del build
       (`prod` → `.env.production`, `qas` → `.env.qas`).
+- [ ] `DOMAIN_FRONTEND` con `https://` en producción: de su esquema sale el
+      atributo `Secure` de las cookies de sesión (`COOKIE_SECURE` lo fuerza si
+      hace falta). No depende de `NODE_ENV`, que el build sustituye en el bundle.
 - [ ] Sourcemaps del frontend: se suben **durante el build**, no al arrancar.
       `SENTRY_URL`, `SENTRY_ORG` y `SENTRY_PROJECT` salen del `.env` del modo,
       como el resto de la configuración; solo el token entra por fuera, como

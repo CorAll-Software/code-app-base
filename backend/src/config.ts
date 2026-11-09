@@ -53,6 +53,18 @@ const corsOrigins = [
   ),
 ];
 
+/**
+ * Atributo Secure de las cookies de sesión. Antes salía de
+ * `process.env.NODE_ENV === 'production'`, pero Bun.build sustituye NODE_ENV
+ * por el valor del equipo que construye: un build hecho sin NODE_ENV dejaba
+ * las cookies sin Secure aunque en el servidor se arrancara con
+ * NODE_ENV=production. Ahora se decide al arrancar: COOKIE_SECURE si está
+ * definida y, si no, según el esquema de DOMAIN_FRONTEND (https → Secure).
+ * Solo un frontend en http:// (desarrollo local) las deja sin Secure.
+ */
+const cookieSecureEnv = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
+const cookieSecure = cookieSecureEnv ? cookieSecureEnv === "true" : !domainFrontend.startsWith("http://");
+
 // Entorno que se reporta a Sentry. El Dockerfile ya exporta NODE_ENV=production,
 // así que un despliegue con Docker queda en "production" sin tocar nada.
 const sentryEnvironment = (process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development").trim();
@@ -72,6 +84,7 @@ export const configServer = {
   },
   auth: {
     secret: jwtSecret,
+    cookieSecure,
     // Access token (JWT): vida corta, se renueva con el refresh token.
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRE_IN ? parseInt(process.env.JWT_ACCESS_EXPIRE_IN, 10) : 15 * 60, // 15 min por defecto
     // Sesión / refresh token rotativo: se extiende en cada renovación.

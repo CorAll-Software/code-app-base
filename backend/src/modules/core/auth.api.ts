@@ -30,7 +30,8 @@ const signUserAvatar = async (user: any) => {
 
 const cookieBase = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    // Se decide al arrancar, no al construir (ver configServer.auth.cookieSecure).
+    secure: configServer.auth.cookieSecure,
     sameSite: 'lax' as const,
     path: '/',
 };
