@@ -19,10 +19,17 @@ export interface UserData {
     is_system_user?: boolean;
 }
 
+/** Lo que devuelve /users/combo: solo lo necesario para un selector. */
+export interface UserComboItem {
+    id: number;
+    names: string;
+    cargo?: string | null;
+}
+
 const path = 'users';
 
 export const usersService = {
-    getUsersCombo: (): Promise<UserData[]> =>
+    getUsersCombo: (): Promise<UserComboItem[]> =>
         GET<any>(`${path}/combo`)
             .then(res => Array.isArray(res) ? res : (res?.data?.data || res?.data || []))
             .catch(() => []),

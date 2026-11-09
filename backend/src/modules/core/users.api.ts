@@ -67,8 +67,11 @@ const enrichWithFileUrl = async (data: any) => {
 export const UsersApi = new Elysia()
     .use(authPlugin)
     .get(`${path}/combo`, async ({ set }) => {
-        // Endpoint ligero para selectores de asignación — cualquier usuario autenticado puede usarlo
-        const usersResult = await execProcedure('core.get_users', [{}]);
+        // Endpoint ligero para selectores de asignación: cualquier usuario
+        // autenticado puede usarlo, así que solo devuelve id, nombre y cargo.
+        // Antes devolvía lo mismo que GET /users (correo, teléfono, DNI, roles)
+        // sin pedir usuarios.view.
+        const usersResult = await execProcedure('core.get_users_combo', [{}]);
         if (usersResult.error) {
             set.status = 400;
             return { message: usersResult.error };
