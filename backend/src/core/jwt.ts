@@ -70,8 +70,12 @@ export const validateToken = async (headers: any, cookie?: any) => {
             return { error: 'La sesión fue cerrada. Vuelve a iniciar sesión.', status: 401 }
         }
 
+        // Superusuario = tiene un rol de sistema. Se decide por `is_system`,
+        // que no se puede asignar ni editar desde la API, y no por el nombre:
+        // quien tuviera roles.manage podía llamar "Administrador" a cualquier
+        // rol y saltarse todos los permisos.
         const roles = res.roles as any[];
-        res.isAdmin = roles?.some(r => r.name === 'Administrador' || r.id === 1) ?? false;
+        res.isAdmin = roles?.some(r => r?.is_system === true) ?? false;
 
         return res
     } catch (_error) {

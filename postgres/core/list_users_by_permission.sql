@@ -42,7 +42,7 @@ BEGIN
                       FROM core.user_roles ur
                       JOIN core.roles      r  ON r.id = ur.role_id
                       WHERE ur.user_id = u.id
-                        AND r.name     = 'Administrador'
+                        AND r.is_system = TRUE
                         AND ur.status  = TRUE
                         AND r.status   = TRUE
                   )

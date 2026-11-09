@@ -42,7 +42,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
                     // 2. Si el valor es null o undefined, no hacemos nada
                     if (!value) return;
 
-                    // 3. Superusuario (Rol Administrador o ID 1) pasa cualquier restricción
+                    // 3. Superusuario (rol de sistema) pasa cualquier restricción
                     if (user?.isAdmin) return;
 
                     // 4. Permisos: Redis primero, BD si la caché está fría

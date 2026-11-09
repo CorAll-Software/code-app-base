@@ -1,7 +1,7 @@
 import type { UserSession } from '@src/core/types';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useFeedback } from './message.provider';
-import { type PermisoSlug, SYSTEM_ROLES } from '@src/core/permissions.constants';
+import type { PermisoSlug } from '@src/core/permissions.constants';
 import { LOCAL_STORAGE_KEYS } from '@src/core/constants';
 import { POST, SESSION_REFRESHED_EVENT, clearSession, getRefreshToken, refreshSession } from '@src/core/http';
 import { identificarUsuario } from '@src/core/sentry';
@@ -89,8 +89,8 @@ export const AuthProvider = ({ children }) => {
     const hasPermission = useCallback((permiso: PermisoSlug | PermisoSlug[]) => {
         if (!permiso) return true;
 
-        // Bypass para Administradores
-        const isAdmin = user?.roles?.some(r => r.name === SYSTEM_ROLES.ADMIN);
+        // Bypass para los roles de sistema (el mismo criterio que el backend)
+        const isAdmin = user?.roles?.some(r => r.is_system === true);
         if (isAdmin) return true;
 
         if (Array.isArray(permiso)) {
