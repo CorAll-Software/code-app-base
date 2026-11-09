@@ -42,7 +42,7 @@ export interface SessionContext {
     endpoint?: string;
 }
 
-export type RevokeReason = 'LOGOUT' | 'MANUAL' | 'PASSWORD_CHANGE' | 'REUSE_DETECTED' | 'ADMIN';
+export type RevokeReason = 'LOGOUT' | 'MANUAL' | 'PASSWORD_CHANGE' | 'REUSE_DETECTED' | 'ADMIN' | 'PASSWORD_ATTEMPTS';
 
 /**
  * Etiqueta legible del dispositivo a partir del user-agent, p.ej.

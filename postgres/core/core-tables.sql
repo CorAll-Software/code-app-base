@@ -14,8 +14,11 @@ DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
     'MANUAL',           -- El usuario la cerró desde "Sesiones" (otro dispositivo)
     'PASSWORD_CHANGE',  -- Cambio/restablecimiento de contraseña
     'REUSE_DETECTED',   -- Se presentó un refresh token ya rotado (posible robo)
-    'ADMIN'             -- Cierre forzado por un administrador
+    'ADMIN',            -- Cierre forzado por un administrador
+    'PASSWORD_ATTEMPTS' -- Demasiados fallos con la contraseña actual (sesión posiblemente robada)
 ); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Bases creadas antes de que existiera el valor.
+ALTER TYPE core.enum_session_revoke_reason ADD VALUE IF NOT EXISTS 'PASSWORD_ATTEMPTS';
 
 -- ── Tablas ───────────────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ import {
     rotateSession,
 } from '@core/session';
 import { cacheUserPermissions } from '@core/permissions';
+import { userStore } from '@core/store';
 import { contextoAuditoria, registrarEvento, trazas } from '@core/auditoria';
 import { emailService } from '@core/email/email-service';
 import { getS3ObjectUrl } from '@core/s3';
@@ -62,6 +63,71 @@ const buildAccessToken = (user: any, sessionId: string) => generateAccessToken({
     roles: user.roles, // Informativo (UI y bitácora); la autorización no lo usa
     sid: sessionId,
 });
+
+/** Fallos seguidos con la contraseña actual antes de cerrar la sesión. */
+const MAX_FALLOS_CONTRASENA = 5;
+/** La cuenta de fallos se reinicia a los 15 minutos del primero. */
+const VENTANA_FALLOS_CONTRASENA = 15 * 60;
+
+/**
+ * Comprueba la contraseña actual en las rutas con sesión que la piden
+ * (cambiar la contraseña, cambiar el correo). Devuelve `null` si es correcta,
+ * o el error a responder.
+ *
+ * Sin límite, quien tuviera un token robado podía probar contraseñas aquí sin
+ * captcha y sin dejar rastro, y salir con la contraseña en claro, que sobrevive
+ * a la sesión. Ahora cada fallo queda en la bitácora (LOGIN_FALLIDO) y, al
+ * llegar al máximo, se cierra la sesión que lo intenta: el dueño solo tiene
+ * que volver a entrar; un atacante pierde el token.
+ *
+ * El hash se busca por el id de la sesión, no por el correo del token, que
+ * puede haber cambiado desde el login.
+ */
+const verificarContrasenaActual = async (
+    user: any,
+    password: string,
+    headers: any,
+    endpoint: string,
+): Promise<{ code: 400 | 401; message: string } | null> => {
+    const credentialsResult = await execProcedure('core.get_user_credentials', [{ id: user.id }]);
+    const hash = credentialsResult.result?.password_hash;
+    if (credentialsResult.error || !hash) {
+        return { code: 400, message: 'No se pudo verificar la identidad del usuario' };
+    }
+
+    if (Bun.password.verifySync(password, String(hash))) {
+        await userStore.clearPasswordFailures(user.id);
+        return null;
+    }
+
+    // `null` = Redis no respondió: el intento se registra pero no se corta.
+    const fallos = await userStore.addPasswordFailure(user.id, VENTANA_FALLOS_CONTRASENA);
+    await registrarEvento({
+        entidad: 'users',
+        operacion: 'LOGIN_FALLIDO',
+        usuarioId: user.id,
+        idRegistro: user.id,
+        sesionId: user.sid,
+        detalle: `Contraseña actual incorrecta (${fallos ?? '?'} de ${MAX_FALLOS_CONTRASENA})`,
+        headers,
+        endpoint,
+    });
+
+    if (fallos !== null && fallos >= MAX_FALLOS_CONTRASENA) {
+        await revokeSession(user.sid, user.id, {
+            reason: 'PASSWORD_ATTEMPTS',
+            actorUserId: user.id,
+            actorSessionId: user.sid,
+        });
+        notifySessionClose(user.sid);
+        return {
+            code: 401,
+            message: 'Demasiados intentos con una contraseña incorrecta. Se cerró la sesión: vuelve a iniciarla.',
+        };
+    }
+
+    return { code: 401, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
+};
 
 const path = '/auth'
 
@@ -288,11 +354,10 @@ export const AuthApi = new Elysia()
                     set.status = 400;
                     return { message: 'Confirma tu contraseña actual para cambiar el correo electrónico.' };
                 }
-                const credentialsResult = await execProcedure('core.get_user_credentials', [{ email: existingUser.email }]);
-                const hash = credentialsResult.result?.password_hash;
-                if (credentialsResult.error || !hash || !Bun.password.verifySync(currentPassword, String(hash))) {
-                    set.status = 401;
-                    return { message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
+                const fallo = await verificarContrasenaActual(user, currentPassword, headers, `PUT ${path}/update-profile`);
+                if (fallo) {
+                    set.status = fallo.code;
+                    return { message: fallo.message };
                 }
             }
 
@@ -354,19 +419,11 @@ export const AuthApi = new Elysia()
         .put(`/update-password`, async ({ body, headers, set, user }) => {
             const { currentPassword, newPassword } = body as { currentPassword: string, newPassword: string };
 
-            // 1. Validar la contraseña actual
-            const credentialsResult = await execProcedure('core.get_user_credentials', [{ email: (user as any).email }])
-            if (credentialsResult.error || !credentialsResult.result) {
-                set.status = 400
-                return { message: 'No se pudo verificar la identidad del usuario' }
-            }
-
-            const credentials = credentialsResult.result
-            const isPasswordValid = Bun.password.verifySync(currentPassword, String(credentials.password_hash))
-
-            if (!isPasswordValid) {
-                set.status = 401
-                return { message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' }
+            // 1. Validar la contraseña actual (con límite de intentos)
+            const fallo = await verificarContrasenaActual(user, currentPassword, headers, `PUT ${path}/update-password`);
+            if (fallo) {
+                set.status = fallo.code;
+                return { message: fallo.message };
             }
 
             // 2. Hashear y actualizar la nueva contraseña

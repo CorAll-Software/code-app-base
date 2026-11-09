@@ -41,6 +41,7 @@ Enum core.enum_session_revoke_reason {
   PASSWORD_CHANGE [note: 'Cambio/restablecimiento de contraseña']
   REUSE_DETECTED  [note: 'Refresh token ya rotado (posible robo)']
   ADMIN           [note: 'Cierre forzado por un administrador']
+  PASSWORD_ATTEMPTS [note: 'Demasiados fallos con la contraseña actual']
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
