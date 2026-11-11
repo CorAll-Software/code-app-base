@@ -5,6 +5,10 @@ import { BellOutlined, CheckOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { useNotificationsStore, type AppNotification } from '@src/store/notifications.store'
+import { BRAND } from '@src/core/color'
+
+/** Texto secundario legible sobre blanco (5.7:1). */
+const TEXTO_SECUNDARIO = '#666666'
 
 const MODULE_COLORS: Record<string, { bg: string; color: string; border: string; accent: string }> = {
     helpdesk:    { bg: '#e6f7ff', color: '#1890ff', border: '#91d5ff', accent: '#1890ff' },
@@ -76,7 +80,7 @@ export const NotificationItem: React.FC<ItemProps> = ({ notification, onRead, on
                                 width: 6,
                                 height: 6,
                                 borderRadius: '50%',
-                                background: '#1677ff',
+                                background: BRAND.primary,
                                 flexShrink: 0,
                                 display: 'inline-block',
                             }} />
@@ -94,7 +98,7 @@ export const NotificationItem: React.FC<ItemProps> = ({ notification, onRead, on
                             {notification.module || 'General'}
                         </span>
                     </div>
-                    <span style={{ fontSize: 11, color: '#bfbfbf', flexShrink: 0, marginLeft: 8 }}>
+                    <span style={{ fontSize: 11, color: TEXTO_SECUNDARIO, flexShrink: 0, marginLeft: 8 }}>
                         {dayjs(notification.created_at).fromNow()}
                     </span>
                 </div>
@@ -109,11 +113,12 @@ export const NotificationItem: React.FC<ItemProps> = ({ notification, onRead, on
                     {notification.title}
                 </div>
 
-                <div style={{ fontSize: 12, color: '#8c8c8c', lineHeight: '1.5' }}>
+                <div style={{ fontSize: 12, color: TEXTO_SECUNDARIO, lineHeight: '1.5' }}>
                     {notification.message}
                 </div>
 
-                {hovered && (isUnread || notification.link) && (
+                {/* Siempre visibles: solo con hover no existirían para teclado ni para táctil. */}
+                {(isUnread || notification.link) && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginTop: 6 }}>
                         {isUnread && (
                             <Button
@@ -121,7 +126,7 @@ export const NotificationItem: React.FC<ItemProps> = ({ notification, onRead, on
                                 type="text"
                                 icon={<CheckOutlined />}
                                 onClick={() => onRead(notification.id)}
-                                style={{ fontSize: 12, color: '#8c8c8c', padding: '0 6px', height: 24 }}
+                                style={{ fontSize: 12, color: TEXTO_SECUNDARIO, padding: '0 8px', height: 28 }}
                             >
                                 Leída
                             </Button>
@@ -131,9 +136,9 @@ export const NotificationItem: React.FC<ItemProps> = ({ notification, onRead, on
                                 size="small"
                                 type="link"
                                 onClick={handleNavigate}
-                                style={{ fontSize: 12, padding: '0 6px', height: 24 }}
+                                style={{ fontSize: 12, padding: '0 8px', height: 28 }}
                             >
-                                Ver →
+                                Ver
                             </Button>
                         )}
                     </div>
@@ -169,13 +174,13 @@ export const NotificationList: React.FC<ListProps> = ({ notifications, onRead, o
                     alignItems: 'center',
                     justifyContent: 'center',
                 }}>
-                    <BellOutlined style={{ fontSize: 22, color: '#bfbfbf' }} />
+                    <BellOutlined style={{ fontSize: 22, color: '#8c8c8c' }} />
                 </div>
                 <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 14, fontWeight: 500, color: '#434343', marginBottom: 3 }}>
                         Estás al día
                     </div>
-                    <div style={{ fontSize: 12, color: '#bfbfbf' }}>
+                    <div style={{ fontSize: 12, color: TEXTO_SECUNDARIO }}>
                         No tienes notificaciones nuevas
                     </div>
                 </div>
@@ -213,7 +218,7 @@ export const PopoverHeader: React.FC<HeaderProps> = ({ unreadCount, onMarkAll })
                 <span style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    background: '#1677ff',
+                    background: BRAND.primary,
                     color: '#fff',
                     borderRadius: 10,
                     padding: '1px 7px',

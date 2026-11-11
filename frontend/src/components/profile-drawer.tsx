@@ -276,13 +276,6 @@ const PersonalDataTab = ({ auth, form, notificationApi }: { auth: any; form: any
                     icon={<SaveOutlined />}
                     size="large"
                     block
-                    style={{
-                        background: BRAND.gradient,
-                        border: 'none',
-                        borderRadius: 8,
-                        height: 44,
-                        fontWeight: 600,
-                    }}
                 >
                     Guardar cambios
                 </Button>
@@ -324,7 +317,7 @@ const ChangePasswordTab = ({ form }: { form: any }) => {
                 label="Nueva contraseña"
                 hasFeedback
                 rules={[
-                    { required: true, message: 'Ingrese la nueva contraseña' },
+                    { required: true, message: 'Ingresa la nueva contraseña' },
                     { min: 8, message: 'Mínimo 8 caracteres' },
                     { max: 128, message: 'Máximo 128 caracteres' },
                     {
@@ -345,7 +338,7 @@ const ChangePasswordTab = ({ form }: { form: any }) => {
                 dependencies={['newPassword']}
                 hasFeedback
                 rules={[
-                    { required: true, message: 'Confirme la contraseña' },
+                    { required: true, message: 'Confirma la contraseña' },
                     ({ getFieldValue }) => ({
                         validator(_, value) {
                             if (!value || getFieldValue('newPassword') === value) return Promise.resolve();
@@ -463,8 +456,8 @@ const SessionsTab = () => {
                                 <Button
                                     danger
                                     type="text"
-                                    size="small"
                                     icon={<LogoutOutlined />}
+                                    aria-label={session.current ? 'Cerrar esta sesión' : `Cerrar la sesión de ${session.device || 'dispositivo desconocido'}`}
                                     loading={closing === session.id}
                                 />
                             </Popconfirm>,

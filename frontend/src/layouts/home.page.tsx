@@ -20,8 +20,8 @@ export const Home = () => {
             justifyContent: 'center',
             background: '#ffffff',
             backgroundImage: `
-                radial-gradient(circle at 15% 20%, rgba(177, 24, 32, 0.06) 0%, transparent 45%),
-                radial-gradient(circle at 85% 80%, rgba(83, 68, 55, 0.05) 0%, transparent 45%)
+                radial-gradient(circle at 15% 20%, rgba(37, 31, 91, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 85% 80%, rgba(68, 171, 82, 0.06) 0%, transparent 45%)
             `,
             padding: isMobile ? '2rem 1rem' : '3rem 2rem',
             position: 'relative',
@@ -70,7 +70,7 @@ export const Home = () => {
         },
         description: {
             fontSize: isMobile ? '0.95rem' : '1.0625rem',
-            color: BRAND.secondary,
+            color: BRAND.secondaryText,
             fontWeight: 600,
             margin: 0,
             textTransform: 'uppercase',

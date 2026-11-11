@@ -302,6 +302,7 @@ function App() {
     `;
 
     const userName = user?.names || user?.email || 'Usuario';
+    const abrirPerfil = () => useProfileDrawerStore.getState().openDrawer();
     const userInitials = userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
 
     return (
@@ -338,7 +339,8 @@ function App() {
                     border: '2px solid rgba(255,255,255,0.8)',
                     flexShrink: 0
                   }}
-                  onClick={() => useProfileDrawerStore.getState().openDrawer()}
+                  aria-label={`Abrir mi perfil (${userName})`}
+                  {...clickable(abrirPerfil)}
                 >
                   {userInitials}
                 </Avatar>
@@ -348,14 +350,15 @@ function App() {
                   className='text-white-100'
                   ellipsis
                   style={{ cursor: 'pointer', fontSize: 15, maxWidth: '40%', color: 'inherit' }}
-                  onClick={() => useProfileDrawerStore.getState().openDrawer()}
+                  aria-label={`Abrir mi perfil (${userName})`}
+                  {...clickable(abrirPerfil)}
                 >
                   {userName}
                 </Text>
               )}
               {!isMobile && (
                 <Tooltip title='Cerrar sesión'>
-                  <Button size='large' icon={<LogoutOutlined />} type='text' className='text-white' onClick={() => authContext.logout()} />
+                  <Button size='large' icon={<LogoutOutlined />} type='text' className='text-white' aria-label='Cerrar sesión' onClick={() => authContext.logout()} />
                 </Tooltip>
               )}
             </div>
@@ -420,7 +423,7 @@ function App() {
                   borderBottom: `1px solid ${token.colorBorderSecondary}`,
                 }}
                 {...clickable(() => {
-                  useProfileDrawerStore.getState().openDrawer();
+                  abrirPerfil();
                   setMobileMenuOpen(false);
                 })}
               >
@@ -457,12 +460,8 @@ function App() {
                   block
                   icon={<LogoutOutlined />}
                   onClick={() => { authContext.logout(); setMobileMenuOpen(false); }}
-                  style={{
-                    height: 44,
-                    borderRadius: 10,
-                    color: token.colorError,
-                    borderColor: token.colorErrorBorder,
-                  }}
+                  danger
+                  style={{ height: 44 }}
                 >
                   Cerrar sesión
                 </Button>

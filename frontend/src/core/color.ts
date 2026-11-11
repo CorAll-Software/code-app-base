@@ -1,6 +1,7 @@
 export const BRAND = {
     primary: '#251f5b',      // Azul índigo profundo — color principal de marca (personalizar por proyecto)
     secondary: '#44ab52',    // Verde de marca (acento / uso secundario)
+    secondaryText: '#2e7d3a', // Verde de marca para TEXTO sobre blanco (5.1:1; el de arriba da 2.9:1)
     header: '#251f5b',       // Header en índigo de marca
     sider: '#1a1644',        // Sider en índigo muy oscuro (contraste)
     body: '#F2F2F2',         // Fondo gris claro

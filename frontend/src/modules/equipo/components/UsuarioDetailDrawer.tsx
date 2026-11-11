@@ -47,7 +47,7 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
       fontWeight: 600,
       textTransform: "uppercase",
       letterSpacing: 0.5,
-      opacity: 0.5,
+      color: "rgba(0, 0, 0, 0.6)",
       margin: "16px 0 8px",
     }}
   >
@@ -133,7 +133,7 @@ export const UsuarioDetailDrawer = ({
             )}
             <Space size={4} style={{ marginTop: 6, flexWrap: "wrap" }}>
               <Badge
-                status={usuario.enable ? "success" : "error"}
+                status={usuario.enable ? "success" : "default"}
                 text={usuario.enable ? "Activo" : "Inactivo"}
               />
             </Space>

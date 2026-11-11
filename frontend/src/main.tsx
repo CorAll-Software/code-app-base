@@ -45,6 +45,11 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     algorithm: [theme.defaultAlgorithm],
     token: {
       colorPrimary: BRAND.primary,
+      // Texto secundario (`Text type="secondary"`, ayudas de formulario): el
+      // 0.45 por defecto da 3.4:1 sobre blanco; 0.6 da 5.7:1.
+      colorTextDescription: 'rgba(0, 0, 0, 0.6)',
+      fontFamily: "'Nunito', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+      borderRadius: 8,
     },
     components: {
       Layout: {

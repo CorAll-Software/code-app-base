@@ -1,4 +1,4 @@
-import { DatabaseOutlined, FileSearchOutlined, WarningOutlined } from "@ant-design/icons";
+import { DatabaseOutlined, EyeOutlined, FileSearchOutlined, WarningOutlined } from "@ant-design/icons";
 import { DataTable } from "@src/components/DataTable";
 import {
   FilterContainer,
@@ -156,6 +156,22 @@ export const AuditoriaPage = () => {
       width: 130,
       render: (ip: string) => ip || <Text type="secondary">—</Text>,
     },
+    {
+      // La fila entera abre el detalle con el ratón; este botón es la vía para
+      // el teclado y el lector de pantalla, que no pueden "hacer clic en la fila".
+      title: "",
+      key: "ver",
+      width: 56,
+      fixed: "right" as const,
+      render: (_: unknown, row: EventoAuditoria) => (
+        <Button
+          type="text"
+          icon={<EyeOutlined />}
+          aria-label={`Ver el detalle del evento del ${dayjs.unix(row.fecha).format("DD/MM/YYYY HH:mm:ss")}`}
+          onClick={(e) => { e.stopPropagation(); setEventoSel(row); }}
+        />
+      ),
+    },
   ];
 
   return (
@@ -174,7 +190,7 @@ export const AuditoriaPage = () => {
         onClearFilters={limpiarFiltros}
         hasActiveFilters={checkHasActiveFilters(operacion, entidad, usuarioId, rango)}
         extraActions={
-          <Button icon={<DatabaseOutlined />} onClick={abrirCobertura}>
+          <Button icon={<DatabaseOutlined />} size="large" onClick={abrirCobertura}>
             Cobertura
           </Button>
         }
