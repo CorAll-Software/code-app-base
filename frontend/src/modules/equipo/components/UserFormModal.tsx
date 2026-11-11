@@ -174,7 +174,7 @@ export const UserFormModal = ({
                     f.errors.some((e: string) => e.toLowerCase().includes('requerido') || e.toLowerCase().includes('obligatorio'))
                 );
                 if (anyRequired) message.error('Por favor completa los campos obligatorios marcados en rojo');
-                else if (errorFields.length > 0) message.error('Revise los datos: hay valores duplicados o con formato incorrecto');
+                else if (errorFields.length > 0) message.error('Revisa los datos: hay valores duplicados o con formato incorrecto');
             });
     };
 
@@ -201,7 +201,7 @@ export const UserFormModal = ({
                     >
                         <Select
                             mode="multiple"
-                            placeholder="Seleccione uno o más roles"
+                            placeholder="Selecciona uno o más roles"
                             maxTagCount="responsive"
                             disabled={user?.is_system_user}
                             options={roles.map(r => ({
@@ -345,14 +345,15 @@ export const UserFormModal = ({
     if (isMobile) {
         return (
             <Drawer
-                title={user ? 'Editar Integrante' : 'Nuevo Integrante'}
+                title={user ? 'Editar usuario' : 'Nuevo usuario'}
                 placement="bottom"
                 open={open}
                 onClose={onCancel}
+                mask={{ closable: false }}
                 styles={{ wrapper: { height: '92vh' }, body: { padding: '8px 12px 80px' } }}
                 extra={
                     (user || currentStep === 1) ? (
-                        <Button size="large" type="primary" icon={<CheckOutlined />} loading={loading} onClick={handleSave} />
+                        <Button size="large" type="primary" icon={<CheckOutlined />} loading={loading} onClick={handleSave}>Guardar</Button>
                     ) : undefined
                 }
             >
@@ -363,9 +364,10 @@ export const UserFormModal = ({
 
     return (
         <Modal
-            title={user ? 'Editar Integrante' : 'Nuevo Integrante'}
+            title={user ? 'Editar usuario' : 'Nuevo usuario'}
             open={open}
             onCancel={onCancel}
+            mask={{ closable: false }}
             onOk={handleModalOk}
             confirmLoading={loading}
             width={680}

@@ -1,8 +1,7 @@
 import React, { type ReactNode, useState, useEffect, useRef } from 'react';
-import { Card, Typography, Grid, Space, Button, Dropdown, Drawer, Popover, Input, theme, Tag, type MenuProps } from 'antd';
-import { FilterOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, TableOutlined, PlusOutlined, ClearOutlined, CheckOutlined, ReloadOutlined, DownOutlined } from '@ant-design/icons';
-import { MobileBottomBar } from '../../modules/configuracion/components/MobileBottomBar';
-import { usePullToRefresh } from '../../modules/configuracion/hooks/usePullToRefresh';
+import { Badge, Card, Typography, Grid, Space, Button, Dropdown, Drawer, Popover, Input, theme, Tag, type MenuProps } from 'antd';
+import { FilterOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, TableOutlined, PlusOutlined, ClearOutlined, CheckOutlined, ReloadOutlined, DownOutlined, LoadingOutlined } from '@ant-design/icons';
+import { PULL_THRESHOLD, usePullToRefresh } from '../../modules/configuracion/hooks/usePullToRefresh';
 
 const { Title, Text } = Typography;
 
@@ -26,7 +25,8 @@ export interface StandardPageLayoutProps {
         onClick: () => void;
         canExecute?: boolean;
     };
-    onRefresh?: () => void;
+    /** Si devuelve la promesa de la carga, el indicador de "Actualizando" dura lo que dura ella. */
+    onRefresh?: () => unknown;
 
     // View Toggles
     viewMode?: ViewMode;
@@ -217,10 +217,10 @@ export const StandardPageLayout = ({
                 {renderFiltersWithTempState(filters)}
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                <Button size="middle" block icon={<ClearOutlined />} onClick={handleClear}>
+                <Button block icon={<ClearOutlined />} onClick={handleClear}>
                     Limpiar
                 </Button>
-                <Button size="middle" block type="primary" icon={<CheckOutlined />} onClick={handleApply}>
+                <Button block type="primary" icon={<CheckOutlined />} onClick={handleApply}>
                     Aplicar
                 </Button>
             </div>
@@ -236,7 +236,7 @@ export const StandardPageLayout = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Title level={3} style={{ margin: 0, whiteSpace: 'nowrap' }}>{title}</Title>
                         {totalCount !== undefined && (
-                            <Tag color="blue" style={{ borderRadius: 10, margin: 0, fontSize: 11 }}>
+                            <Tag style={{ borderRadius: 10, margin: 0, fontSize: 11 }}>
                                 {totalCount} total
                             </Tag>
                         )}
@@ -255,19 +255,22 @@ export const StandardPageLayout = ({
                             allowClear
                             value={searchValue}
                             onChange={(e) => onSearchChange(e.target.value)}
-                            style={{ flex: 1, minWidth: 0, borderRadius: 8 }}
+                            style={{ flex: 1, minWidth: 0 }}
                             size="large"
                         />
                     )}
 
                     {filters && setIsFilterOpen && (
-                        <Button
-                            icon={<FilterOutlined />}
-                            onClick={() => setIsFilterOpen(!isFilterOpen)}
-                            size="large"
-                            type={hasActiveFilters ? 'primary' : 'default'}
-                            style={{ borderRadius: 8, flexShrink: 0, width: 48, height: 40, padding: 0 }}
-                        />
+                        <Badge dot={hasActiveFilters}>
+                            <Button
+                                icon={<FilterOutlined />}
+                                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                                size="large"
+                                type={hasActiveFilters ? 'primary' : 'default'}
+                                aria-label={hasActiveFilters ? 'Filtros (hay filtros activos)' : 'Filtros'}
+                                style={{ flexShrink: 0, width: 48, height: 44, padding: 0 }}
+                            />
+                        </Badge>
                     )}
                 </div>
             </div>
@@ -278,7 +281,7 @@ export const StandardPageLayout = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                         <Title level={4} style={{ margin: 0, whiteSpace: 'nowrap' }}>{title}</Title>
                         {totalCount !== undefined && (
-                            <Tag color="blue" style={{ borderRadius: 10, margin: 0, fontSize: 11 }}>
+                            <Tag style={{ borderRadius: 10, margin: 0, fontSize: 11 }}>
                                 {totalCount} total
                             </Tag>
                         )}
@@ -294,8 +297,7 @@ export const StandardPageLayout = ({
                         allowClear
                         value={searchValue}
                         onChange={(e) => onSearchChange(e.target.value)}
-                        style={{ flex: '1 1 180px', maxWidth: 300, borderRadius: 8 }}
-                        size="middle"
+                        style={{ flex: '1 1 180px', maxWidth: 300 }}
                     />
                 )}
 
@@ -310,9 +312,7 @@ export const StandardPageLayout = ({
                     >
                         <Button
                             icon={<FilterOutlined />}
-                            size="middle"
                             type={hasActiveFilters ? 'primary' : 'default'}
-                            style={{ borderRadius: 8 }}
                         >
                             Filtros
                         </Button>
@@ -325,8 +325,6 @@ export const StandardPageLayout = ({
                     <Button
                         icon={<ReloadOutlined />}
                         onClick={onRefresh}
-                        size="middle"
-                        style={{ borderRadius: 8 }}
                     >
                         Recargar
                     </Button>
@@ -337,8 +335,6 @@ export const StandardPageLayout = ({
                         type="primary"
                         icon={primaryAction.icon || <PlusOutlined />}
                         onClick={primaryAction.onClick}
-                        size="middle"
-                        style={{ borderRadius: 8 }}
                     >
                         {primaryAction.label}
                     </Button>
@@ -377,7 +373,7 @@ export const StandardPageLayout = ({
                                     {title}
                                 </Title>
                                 {totalCount !== undefined && !isMobile && (
-                                    <Tag color="blue" style={{ borderRadius: 10, margin: 0 }}>
+                                    <Tag style={{ borderRadius: 10, margin: 0 }}>
                                         {totalCount} total
                                     </Tag>
                                 )}
@@ -399,7 +395,7 @@ export const StandardPageLayout = ({
                                 icon={<ReloadOutlined />}
                                 onClick={onRefresh}
                             >
-                                {!isMobile && "Recargar"}
+                                Recargar
                             </Button>
                         )}
                         {!isMobile && primaryAction?.canExecute && (
@@ -424,19 +420,22 @@ export const StandardPageLayout = ({
                         allowClear
                         value={searchValue}
                         onChange={(e) => onSearchChange(e.target.value)}
-                        style={{ maxWidth: isMobile ? '100%' : 300, flex: 1, borderRadius: 8 }}
+                        style={{ maxWidth: isMobile ? '100%' : 300, flex: 1 }}
                         size="large"
                     />
                 )}
 
                 {filters && isMobile && setIsFilterOpen && (
-                    <Button
-                        icon={<FilterOutlined />}
-                        onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        size="large"
-                        type={hasActiveFilters ? 'primary' : 'default'}
-                        style={{ borderRadius: 8 }}
-                    />
+                    <Badge dot={hasActiveFilters}>
+                        <Button
+                            icon={<FilterOutlined />}
+                            onClick={() => setIsFilterOpen(!isFilterOpen)}
+                            size="large"
+                            type={hasActiveFilters ? 'primary' : 'default'}
+                            aria-label={hasActiveFilters ? 'Filtros (hay filtros activos)' : 'Filtros'}
+                            style={{ width: 48, height: 44, padding: 0 }}
+                        />
+                    </Badge>
                 )}
 
                 {filters && !isMobile && setIsFilterOpen && (
@@ -452,7 +451,6 @@ export const StandardPageLayout = ({
                             icon={<FilterOutlined />}
                             size="large"
                             type={hasActiveFilters ? 'primary' : 'default'}
-                            style={{ borderRadius: 8 }}
                         >
                             Filtros
                         </Button>
@@ -471,7 +469,7 @@ export const StandardPageLayout = ({
                         trigger={['click']}
                         placement="bottomRight"
                     >
-                        <Button size="large" style={{ borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Button size="large" aria-label="Cambiar vista" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             {currentViewItem ? (currentViewItem as any).icon : <AppstoreOutlined />}
                             <DownOutlined style={{ fontSize: 10, color: token.colorTextSecondary }} />
                         </Button>
@@ -485,7 +483,7 @@ export const StandardPageLayout = ({
                         icon={primaryAction.icon || <PlusOutlined />}
                         onClick={primaryAction.onClick}
                         size="large"
-                        style={{ borderRadius: 8, padding: '0 24px', marginLeft: 'auto' }}
+                        style={{ padding: '0 24px', marginLeft: 'auto' }}
                     >
                         {primaryAction.label}
                     </Button>
@@ -505,8 +503,22 @@ export const StandardPageLayout = ({
             }
         >
             {isMobile && onRefresh && (isRefreshing || pullDistance > 0) && (
-                <div style={{ textAlign: 'center', padding: '6px 0', fontSize: 12, color: token.colorPrimary, flexShrink: 0 }}>
-                    {isRefreshing ? 'Actualizando...' : pullDistance > 60 ? 'Suelta para actualizar' : 'Desliza para actualizar'}
+                <div
+                    role="status"
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 8,
+                        height: isRefreshing ? 40 : pullDistance,
+                        overflow: 'hidden',
+                        fontSize: 13,
+                        color: token.colorPrimary,
+                        flexShrink: 0,
+                    }}
+                >
+                    {isRefreshing ? <LoadingOutlined spin /> : <ReloadOutlined />}
+                    {isRefreshing ? 'Actualizando…' : pullDistance >= PULL_THRESHOLD ? 'Suelta para actualizar' : 'Desliza para actualizar'}
                 </div>
             )}
             <Card
@@ -534,19 +546,26 @@ export const StandardPageLayout = ({
                 {children}
             </Card>
 
-            {/* Mobile Bottom Action Bar */}
+            {/* Acción principal en móvil: un botón flotante, no una barra de pestañas. */}
             {isMobile && primaryAction?.canExecute && (
-                <MobileBottomBar
-                    items={[
-                        {
-                            key: "primary_action",
-                            icon: primaryAction.icon || <PlusOutlined />,
-                            label: primaryAction.label,
-                            onClick: primaryAction.onClick,
-                            primary: true
-                        }
-                    ]}
-                />
+                <Button
+                    type="primary"
+                    size="large"
+                    icon={primaryAction.icon || <PlusOutlined />}
+                    onClick={primaryAction.onClick}
+                    style={{
+                        position: 'fixed',
+                        right: 16,
+                        bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+                        zIndex: 100,
+                        height: 48,
+                        paddingInline: 20,
+                        borderRadius: 24,
+                        boxShadow: token.boxShadowSecondary,
+                    }}
+                >
+                    {primaryAction.label}
+                </Button>
             )}
 
             {/* Componente Drawer sólo para Móvil */}

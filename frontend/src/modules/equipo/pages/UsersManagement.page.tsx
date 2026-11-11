@@ -3,9 +3,8 @@ import {
   EditOutlined,
   EyeOutlined,
   LockOutlined,
-  ReloadOutlined,
+  MoreOutlined,
   TeamOutlined,
-  LoadingOutlined,
 } from "@ant-design/icons";
 
 import { useAuth } from "@src/providers/auth-provider";
@@ -13,10 +12,11 @@ import { PERMISSIONS } from "@src/core/permissions.constants";
 import {
   Avatar,
   Button,
+  Dropdown,
   Modal,
+  Segmented,
   Space,
   Tag,
-  theme,
   Tooltip,
   Typography,
   Grid,
@@ -37,18 +37,17 @@ import { getColorString } from "@src/core/color";
 import { useDebounce } from "@src/core/hooks";
 import { DataTable } from "@src/components/DataTable";
 import { StandardPageLayout } from "@src/components/ui/StandardPageLayout";
-import {
-  FilterContainer,
-  FilterSelect,
-} from "@src/components/ui/StandardFilters";
 import { MobileDeleteConfirm } from "@src/components/MobileDeleteConfirm";
-import { usePullToRefresh } from "../../configuracion/hooks/usePullToRefresh";
 
 const { Text } = Typography;
 
+const nombreDe = (u: UserData) =>
+  capitalizeWords(
+    u.names || `${u.first_name || ""} ${u.last_name || ""}`.trim(),
+  ) || "este usuario";
+
 export const UsersManagementPage = () => {
   const { hasPermission, user: currentUser } = useAuth();
-  const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
@@ -60,11 +59,10 @@ export const UsersManagementPage = () => {
   const [modalLoading, setModalLoading] = useState<boolean>(false);
 
   const [nameFilter, setNameFilter] = useState<string>("");
-  const debouncedNameFilter = useDebounce(nameFilter, 500);
+  const debouncedNameFilter = useDebounce(nameFilter, 250);
   const [statusFilter, setStatusFilter] = useState<boolean | undefined>(
     undefined,
   );
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -78,7 +76,7 @@ export const UsersManagementPage = () => {
 
   const fetchData = useCallback((page: number, size: number) => {
     setLoading(true);
-    usersService
+    return usersService
       .getPaginatedUsers({
         page,
         page_size: size,
@@ -133,15 +131,6 @@ export const UsersManagementPage = () => {
     fetchData(1, pageSizeRef.current);
   }, [fetchData]);
 
-  const {
-    containerRef,
-    pullDistance,
-    isRefreshing: isPulling,
-  } = usePullToRefresh({
-    onRefresh: () => fetchData(currentPage, pageSize),
-    enabled: isMobile,
-  });
-
   const handleAddUser = () => {
     setSelectedUser(null);
     setIsFormModalOpen(true);
@@ -180,11 +169,13 @@ export const UsersManagementPage = () => {
       return;
     }
     Modal.confirm({
-      title: "¿Eliminar este integrante?",
+      title: "¿Eliminar este usuario?",
       content: "Se desactivará su acceso al sistema.",
       okText: "Eliminar",
       okType: "danger",
       cancelText: "Cancelar",
+      // El foco arranca en Cancelar: un Enter por inercia no elimina a nadie.
+      focusable: { autoFocusButton: "cancel" },
       onOk: () =>
         usersService.deleteUser(user).then((success) => {
           if (success) setUsers((prev) => prev.filter((u) => u.id !== user.id));
@@ -237,17 +228,22 @@ export const UsersManagementPage = () => {
       .finally(() => setModalLoading(false));
   };
 
-  const handleResetFilters = () => {
-    setNameFilter("");
-    setStatusFilter(undefined);
-    fetchData(1, pageSize);
-  };
+  /** Por qué no se puede eliminar a este usuario, o `null` si sí se puede. */
+  const motivoProtegido = useCallback(
+    (record: UserData): string | null => {
+      if (record.id === 1) return "administrador protegido";
+      if (record.id === currentUser?.id) return "es tu propia cuenta";
+      if (record.is_system_user) return "usuario de sistema";
+      return null;
+    },
+    [currentUser?.id],
+  );
 
   const columns = useMemo<ColumnsType<UserData>>(() => {
     if (isMobile) {
       return [
         {
-          title: "Integrante",
+          title: "Usuario",
           key: "user",
           render: (_, record) => {
             const fullName = capitalizeWords(
@@ -308,58 +304,68 @@ export const UsersManagementPage = () => {
                       }}
                     >
                       <Tag
-                        color={record.enable ? "success" : "error"}
-                        style={{ fontSize: 10, margin: 0 }}
+                        color={record.enable ? "success" : "default"}
+                        style={{ fontSize: 11, margin: 0 }}
                       >
                         {record.enable ? "ACTIVO" : "INACTIVO"}
                       </Tag>
                     </div>
                   </div>
                 </div>
-                <Space size="middle">
+                {/* Mismas acciones que en escritorio, en un solo menú: cuatro
+                    iconos de 40 px no caben con holgura en una fila de móvil. */}
+                <Dropdown
+                  trigger={["click"]}
+                  placement="bottomRight"
+                  menu={{
+                    items: [
+                      {
+                        key: "ver",
+                        icon: <EyeOutlined />,
+                        label: "Ver detalle",
+                        onClick: () => handleViewUser(record),
+                      },
+                      ...(hasPermission(PERMISSIONS.USUARIOS.EDIT)
+                        ? [
+                            {
+                              key: "editar",
+                              icon: <EditOutlined />,
+                              label: "Editar",
+                              onClick: () => handleEditUser(record),
+                            },
+                            {
+                              key: "clave",
+                              icon: <LockOutlined />,
+                              label: "Cambiar contraseña",
+                              onClick: () => handleChangePassword(record),
+                            },
+                          ]
+                        : []),
+                      ...(hasPermission(PERMISSIONS.USUARIOS.DELETE)
+                        ? [
+                            { type: "divider" as const },
+                            {
+                              key: "eliminar",
+                              icon: <DeleteOutlined />,
+                              danger: true,
+                              disabled: !!motivoProtegido(record),
+                              label: motivoProtegido(record)
+                                ? `Eliminar (${motivoProtegido(record)})`
+                                : "Eliminar",
+                              onClick: () => handleDeleteUser(record),
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
+                >
                   <Button
                     type="text"
-                    size="large"
-                    icon={<EyeOutlined />}
-                    onClick={() => handleViewUser(record)}
+                    icon={<MoreOutlined style={{ fontSize: 20 }} />}
+                    aria-label={`Acciones para ${fullName || "este usuario"}`}
+                    style={{ width: 44, height: 44, flexShrink: 0 }}
                   />
-                  {hasPermission(PERMISSIONS.USUARIOS.EDIT) && (
-                    <Button
-                      type="text"
-                      size="large"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEditUser(record)}
-                    />
-                  )}
-                  {hasPermission(PERMISSIONS.USUARIOS.DELETE) &&
-                    !record.is_system_user &&
-                    record.id !== 1 &&
-                    record.id !== currentUser?.id && (
-                      <Button
-                        type="text"
-                        size="large"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleDeleteUser(record)}
-                      />
-                    )}
-                  {(record.id === 1 || record.id === currentUser?.id) && (
-                    <Tooltip
-                      title={
-                        record.id === 1
-                          ? "Administrador protegido"
-                          : "No puedes eliminarte a ti mismo"
-                      }
-                    >
-                      <Button
-                        type="text"
-                        size="large"
-                        disabled
-                        icon={<DeleteOutlined />}
-                      />
-                    </Tooltip>
-                  )}
-                </Space>
+                </Dropdown>
               </div>
             );
           },
@@ -436,7 +442,7 @@ export const UsersManagementPage = () => {
         key: "enable",
         width: 100,
         render: (enable: boolean) => (
-          <Tag color={enable ? "success" : "error"}>
+          <Tag color={enable ? "success" : "default"}>
             {enable ? "ACTIVO" : "INACTIVO"}
           </Tag>
         ),
@@ -459,6 +465,7 @@ export const UsersManagementPage = () => {
               <Button
                 type="text"
                 icon={<EyeOutlined />}
+                aria-label={`Ver el detalle de ${nombreDe(record)}`}
                 onClick={() => handleViewUser(record)}
               />
             </Tooltip>
@@ -468,34 +475,29 @@ export const UsersManagementPage = () => {
                   <Button
                     type="text"
                     icon={<EditOutlined />}
-                    style={{ color: token.colorPrimary }}
+                    aria-label={`Editar a ${nombreDe(record)}`}
                     onClick={() => handleEditUser(record)}
                   />
                 </Tooltip>
-                <Tooltip title="Cambiar clave">
+                <Tooltip title="Cambiar contraseña">
                   <Button
                     type="text"
                     icon={<LockOutlined />}
-                    style={{ color: token.colorInfo }}
+                    aria-label={`Cambiar la contraseña de ${nombreDe(record)}`}
                     onClick={() => handleChangePassword(record)}
                   />
                 </Tooltip>
               </>
             )}
             {hasPermission(PERMISSIONS.USUARIOS.DELETE) &&
-              (record.is_system_user ||
-              record.id === 1 ||
-              record.id === currentUser?.id ? (
-                <Tooltip
-                  title={
-                    record.id === 1
-                      ? "Administrador protegido"
-                      : record.id === currentUser?.id
-                        ? "No puedes eliminarte"
-                        : "Protegido"
-                  }
-                >
-                  <Button type="text" disabled icon={<DeleteOutlined />} />
+              (motivoProtegido(record) ? (
+                <Tooltip title={`No se puede eliminar: ${motivoProtegido(record)}`}>
+                  <Button
+                    type="text"
+                    disabled
+                    icon={<DeleteOutlined />}
+                    aria-label={`Eliminar a ${nombreDe(record)} (no disponible: ${motivoProtegido(record)})`}
+                  />
                 </Tooltip>
               ) : (
                 <Tooltip title="Eliminar">
@@ -503,6 +505,7 @@ export const UsersManagementPage = () => {
                     type="text"
                     danger
                     icon={<DeleteOutlined />}
+                    aria-label={`Eliminar a ${nombreDe(record)}`}
                     onClick={() => handleDeleteUser(record)}
                   />
                 </Tooltip>
@@ -514,69 +517,43 @@ export const UsersManagementPage = () => {
     return cols;
   }, [
     hasPermission,
-    token,
     isMobile,
-    currentUser?.id,
+    motivoProtegido,
     handleViewUser,
     handleEditUser,
     handleChangePassword,
     handleDeleteUser,
   ]);
 
-  const filtersNode = (
-    <FilterContainer>
-      <FilterSelect
-        label="Estado"
-        options={[
-          { label: "Activos", value: "true" },
-          { label: "Inactivos", value: "false" },
-        ]}
-        onChange={(val) =>
-          setStatusFilter(
-            val === "true" ? true : val === "false" ? false : undefined,
-          )
-        }
-        value={
-          statusFilter === true
-            ? "true"
-            : statusFilter === false
-              ? "false"
-              : undefined
-        }
-      />
-    </FilterContainer>
+  // Un solo filtro de tres valores: va a la vista, sin popover ni "Aplicar".
+  const filtroEstado = (
+    <Segmented
+      aria-label="Filtrar por estado"
+      size="large"
+      value={
+        statusFilter === true
+          ? "activos"
+          : statusFilter === false
+            ? "inactivos"
+            : "todos"
+      }
+      onChange={(v) =>
+        setStatusFilter(
+          v === "activos" ? true : v === "inactivos" ? false : undefined,
+        )
+      }
+      options={[
+        { label: "Todos", value: "todos" },
+        { label: "Activos", value: "activos" },
+        { label: "Inactivos", value: "inactivos" },
+      ]}
+    />
   );
 
   return (
-    <div
-      ref={containerRef}
-      style={{ height: "100%", display: "flex", flexDirection: "column" }}
-    >
-      {isMobile && (pullDistance > 0 || isPulling) && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: pullDistance || 40,
-            overflow: "hidden",
-            transition: pullDistance === 0 ? "height 0.2s ease" : undefined,
-            color: token.colorPrimary,
-            fontSize: 13,
-            gap: 8,
-          }}
-        >
-          {isPulling ? <LoadingOutlined spin /> : <ReloadOutlined />}
-          {isPulling
-            ? "Actualizando..."
-            : pullDistance >= 80
-              ? "Soltar para actualizar"
-              : "Desliza hacia abajo"}
-        </div>
-      )}
-
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <StandardPageLayout
-        title="Gestión de Usuarios"
+        title="Usuarios"
         subtitle="Administra los usuarios, sus accesos y roles del sistema"
         icon={<TeamOutlined />}
         totalCount={total}
@@ -584,14 +561,11 @@ export const UsersManagementPage = () => {
         onSearchChange={setNameFilter}
         onRefresh={() => fetchData(currentPage, pageSize)}
         primaryAction={{
-          label: "Nuevo",
+          label: "Nuevo usuario",
           onClick: handleAddUser,
           canExecute: hasPermission(PERMISSIONS.USUARIOS.CREATE),
         }}
-        filters={filtersNode}
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
-        onClearFilters={handleResetFilters}
+        extraActions={filtroEstado}
       >
         <div
           style={{
@@ -607,7 +581,6 @@ export const UsersManagementPage = () => {
             rowKey="id"
             loading={loading}
             size="small"
-            scroll={isMobile ? undefined : { x: 1100 }}
             scrollHeight="calc(100vh - 430px)"
             pagination={false}
             onLoadMore={
@@ -638,7 +611,7 @@ export const UsersManagementPage = () => {
                 total={total}
                 onChange={(page, size) => fetchData(page, size)}
                 showSizeChanger
-                showTotal={(total) => `Total: ${total} integrantes`}
+                showTotal={(total) => `Total: ${total} usuarios`}
               />
             </div>
           )}
@@ -672,7 +645,7 @@ export const UsersManagementPage = () => {
       {isMobile && (
         <MobileDeleteConfirm
           open={!!deleteTarget}
-          title="Eliminar Integrante"
+          title="¿Eliminar este usuario?"
           description={`Se desactivará el acceso de "${deleteTarget?.names || deleteTarget?.email || ""}" al sistema.`}
           onConfirm={confirmDeleteUser}
           onCancel={() => setDeleteTarget(null)}

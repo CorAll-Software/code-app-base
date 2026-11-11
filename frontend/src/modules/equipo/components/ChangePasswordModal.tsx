@@ -30,9 +30,9 @@ export const ChangePasswordModal = ({ open, userId, onCancel, onSave, loading }:
         <Form form={form} layout="vertical" style={{ marginTop: isMobile ? 0 : token.marginLG }}>
             <Form.Item
                 name="password"
-                label="Nueva Contraseña"
+                label="Nueva contraseña"
                 rules={[
-                    { required: true, message: 'Ingrese la nueva contraseña' },
+                    { required: true, message: 'Ingresa la nueva contraseña' },
                     { min: 8, message: 'Mínimo 8 caracteres' },
                     { max: 128, message: 'Máximo 128 caracteres' },
                     { pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%&*])/, message: "Debe incluir mayúscula, minúscula, número y carácter especial (!@#$%&*)" }
@@ -43,11 +43,11 @@ export const ChangePasswordModal = ({ open, userId, onCancel, onSave, loading }:
             </Form.Item>
             <Form.Item
                 name="confirm"
-                label="Confirmar Contraseña"
+                label="Confirmar contraseña"
                 dependencies={['password']}
                 hasFeedback
                 rules={[
-                    { required: true, message: 'Confirme la contraseña' },
+                    { required: true, message: 'Confirma la contraseña' },
                     ({ getFieldValue }) => ({
                         validator(_, value) {
                             if (!value || getFieldValue('password') === value) return Promise.resolve();
@@ -56,7 +56,7 @@ export const ChangePasswordModal = ({ open, userId, onCancel, onSave, loading }:
                     }),
                 ]}
             >
-                <Input.Password placeholder="Repita la nueva contraseña" />
+                <Input.Password placeholder="Repite la nueva contraseña" />
             </Form.Item>
         </Form>
     );
@@ -64,12 +64,13 @@ export const ChangePasswordModal = ({ open, userId, onCancel, onSave, loading }:
     if (isMobile) {
         return (
             <Drawer
-                title="Cambiar Clave de Acceso"
+                title="Cambiar contraseña"
                 placement="bottom"
                 open={open}
                 onClose={onCancel}
+                mask={{ closable: false }}
                 styles={{ wrapper: { height: '50vh' } }}
-                extra={<Button size="large" type="primary" icon={<CheckOutlined />} loading={loading} onClick={handleOk} />}
+                extra={<Button size="large" type="primary" icon={<CheckOutlined />} loading={loading} onClick={handleOk}>Guardar</Button>}
             >
                 {formContent}
             </Drawer>
@@ -78,10 +79,12 @@ export const ChangePasswordModal = ({ open, userId, onCancel, onSave, loading }:
 
     return (
         <Modal
-            title="Cambiar Clave de Acceso"
+            title="Cambiar contraseña"
             open={open}
             onOk={handleOk}
             onCancel={onCancel}
+            okText="Guardar"
+            mask={{ closable: false }}
             confirmLoading={loading}
         >
             {formContent}

@@ -41,6 +41,7 @@ export const StandardModalForm = ({
                 placement="bottom"
                 open={open}
                 onClose={onCancel}
+                mask={{ closable: false }}
                 styles={{ 
                     wrapper: { height: '92vh' }, 
                     body: { padding: '8px 12px 80px' } 
@@ -54,6 +55,7 @@ export const StandardModalForm = ({
                             loading={loading} 
                             onClick={onOk}
                         >
+                            {okText}
                         </Button>
                     )
                 }
@@ -69,6 +71,7 @@ export const StandardModalForm = ({
             open={open}
             onOk={onOk}
             onCancel={onCancel}
+            mask={{ closable: false }}
             confirmLoading={loading}
             width={width}
             okText={okText}

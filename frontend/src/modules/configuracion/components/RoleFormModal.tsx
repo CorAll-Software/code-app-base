@@ -56,7 +56,7 @@ export const RoleFormModal = ({
           permissions_ids: (values.permissions_ids || []).map((id: string) => parseInt(id, 10)),
         });
       })
-      .catch(() => message.error("Por favor complete los campos obligatorios"));
+      .catch(() => message.error("Completa los campos obligatorios"));
   };
 
   const renderPermissionsSelector = () => {
@@ -76,7 +76,7 @@ export const RoleFormModal = ({
     >
       <Form.Item
         name="name"
-        label="Nombre del Rol"
+        label="Nombre del rol"
         rules={[{ required: true, message: "Requerido" }]}
       >
         <Input
@@ -92,15 +92,15 @@ export const RoleFormModal = ({
         items={[
           {
             key: "1",
-            label: <Space><KeyOutlined />Permisos Asignados</Space>,
+            label: <Space><KeyOutlined />Permisos asignados</Space>,
             children: <div style={{ padding: "8px 0" }}>{renderPermissionsSelector()}</div>,
           },
           {
             key: "2",
-            label: <Space><SettingOutlined />Configuración Adicional</Space>,
+            label: <Space><SettingOutlined />Configuración adicional</Space>,
             children: (
               <div style={{ padding: "16px 0" }}>
-                <Form.Item name="description" label="Descripción del Rol">
+                <Form.Item name="description" label="Descripción del rol">
                   <Input.TextArea
                     maxLength={255}
                     placeholder="¿Qué responsabilidades tiene este rol?"
@@ -121,13 +121,14 @@ export const RoleFormModal = ({
   if (isMobile) {
     return (
       <Drawer
-        title={role ? "Editar Rol" : "Nuevo Rol"}
+        title={role ? "Editar rol" : "Nuevo rol"}
         placement="bottom"
         open={open}
         onClose={onCancel}
+        mask={{ closable: false }}
         styles={{ wrapper: { height: '92vh' }, body: { paddingBottom: 80 } }}
         extra={
-          <Button size="large" type="primary" icon={<CheckOutlined />} loading={loading} onClick={handleOk} />
+          <Button size="large" type="primary" icon={<CheckOutlined />} loading={loading} onClick={handleOk}>Guardar</Button>
         }
       >
         {formContent}
@@ -137,14 +138,15 @@ export const RoleFormModal = ({
 
   return (
     <Modal
-      title={role ? "Editar Rol" : "Nuevo Rol"}
+      title={role ? "Editar rol" : "Nuevo rol"}
       open={open}
       onCancel={onCancel}
+      mask={{ closable: false }}
       onOk={handleOk}
       confirmLoading={loading}
       width={820}
       centered
-      okText="Guardar Cambios"
+      okText="Guardar"
       cancelText="Cancelar"
       destroyOnHidden
     >

@@ -17,7 +17,6 @@ export const FilterMultiSelect = ({ label, ...props }: BaseFilterProps & SelectP
       maxTagCount="responsive"
       placeholder="Todos"
       style={{ width: '100%', minWidth: 200 }}
-      size="middle"
       {...props}
     />
   </div>
@@ -30,7 +29,6 @@ export const FilterSelect = ({ label, ...props }: BaseFilterProps & SelectProps)
       allowClear
       placeholder="Seleccionar"
       style={{ width: '100%', minWidth: 200 }}
-      size="middle"
       {...props}
     />
   </div>
@@ -43,7 +41,6 @@ export const FilterDateRange = ({ label, ...props }: BaseFilterProps & any) => (
       format="DD/MM/YYYY"
       placeholder={["Desde", "Hasta"]}
       style={{ width: '100%', minWidth: 240 }}
-      size="middle"
       {...props}
     />
   </div>
@@ -61,7 +58,6 @@ export const FilterTreeMultiSelect = ({ label, ...props }: BaseFilterProps & Tre
       treeCheckable
       showCheckedStrategy={TreeSelect.SHOW_PARENT}
       maxTagCount="responsive"
-      size="middle"
       {...props}
     />
   </div>
@@ -82,7 +78,6 @@ export const FilterMonthPicker = ({ label, value, onChange, placeholder = 'Todos
       allowClear
       placeholder={placeholder}
       style={{ width: '100%', minWidth: 180 }}
-      size="middle"
       value={value}
       onChange={onChange}
       {...props}

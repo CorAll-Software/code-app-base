@@ -104,7 +104,7 @@ export function DataTable<T extends object>({
               onClick={onLoadMore}
               loading={loadingMore}
               disabled={!onLoadMore}
-              style={{ maxWidth: 320, borderRadius: 8 }}
+              style={{ maxWidth: 320 }}
               aria-label={`Cargar más resultados. Mostrando ${currentCount} de ${mobileTotal}`}
             >
               Cargar más

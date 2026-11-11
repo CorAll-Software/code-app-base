@@ -93,13 +93,13 @@ export const CredentialsSection = ({
                         <Col span={isEdit ? 12 : 24}>
                             <Form.Item
                                 name="email"
-                                label="Correo Electrónico"
+                                label="Correo electrónico"
                                 rules={[
                                     { required: true, message: 'Requerido' },
                                     { max: 60, message: 'Máximo 60 caracteres' },
                                     { 
                                         pattern: /^[a-zA-Z0-9._%+-åäöÅÄÖñÑáéíóúÁÉÍÓÚüÜ]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 
-                                        message: '¡Por favor ingrese un email válido!' 
+                                        message: 'Ingresa un correo válido, como nombre@empresa.com' 
                                     },
                                     {
                                         validator: async (_, value) => {
@@ -125,7 +125,7 @@ export const CredentialsSection = ({
                         </Col>
                         <Col span={12}>
                             <Form.Item
-                                label={isEdit ? "Contraseña (Protegida)" : "Contraseña de Acceso"}
+                                label={isEdit ? "Contraseña (protegida)" : "Contraseña de acceso"}
                                 required={!isEdit}
                                 style={{ marginBottom: '12px' }}
                             >
@@ -134,7 +134,7 @@ export const CredentialsSection = ({
                                         name="password"
                                         noStyle
                                         rules={[
-                                            { required: !isEdit, message: 'Ingrese la contraseña de acceso' },
+                                            { required: !isEdit, message: 'Ingresa la contraseña de acceso' },
                                             { min: 8, message: 'Mínimo 8 caracteres' },
                                             { max: 128, message: 'Máximo 128 caracteres' },
                                             {
@@ -150,9 +150,10 @@ export const CredentialsSection = ({
                                             visibilityToggle={!isEdit}
                                         />
                                     </Form.Item>
-                                    <Tooltip title={isEdit ? "Use seguridad en la tabla para cambiar" : "Generar clave aleatoria"}>
+                                    <Tooltip title={isEdit ? "Se cambia con «Cambiar contraseña», en la lista de usuarios" : "Generar contraseña aleatoria"}>
                                         <Button
                                             icon={<ReloadOutlined />}
+                                            aria-label="Generar contraseña aleatoria"
                                             onClick={generateRandomPassword}
                                             disabled={isEdit}
                                         />
@@ -165,11 +166,11 @@ export const CredentialsSection = ({
                             <Col span={12}>
                                 <Form.Item
                                     name="confirm"
-                                    label="Confirmar Contraseña"
+                                    label="Confirmar contraseña"
                                     dependencies={['password']}
                                     hasFeedback
                                     rules={[
-                                        { required: true, message: 'Confirme la contraseña' },
+                                        { required: true, message: 'Confirma la contraseña' },
                                         ({ getFieldValue }) => ({
                                             validator(_, value) {
                                                 if (!value || getFieldValue('password') === value) {
@@ -180,7 +181,7 @@ export const CredentialsSection = ({
                                         }),
                                     ]}
                                 >
-                                    <Input.Password placeholder="Repita la nueva contraseña" />
+                                    <Input.Password placeholder="Repite la contraseña" />
                                 </Form.Item>
                             </Col>
                         )}

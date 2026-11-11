@@ -1,6 +1,6 @@
-import { Button, Space, Typography, Tag, Modal, theme, Grid, Pagination, Tooltip } from 'antd';
+import { Button, Space, Typography, Tag, Modal, Grid, Pagination, Segmented, Tooltip } from 'antd';
 import { DataTable } from '@src/components/DataTable';
-import { SafetyCertificateOutlined, EditOutlined, ReloadOutlined, DeleteOutlined, LoadingOutlined, KeyOutlined } from '@ant-design/icons';
+import { SafetyCertificateOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 
@@ -9,9 +9,7 @@ import { rolesService, type Role, type Permission } from '../services/roles.serv
 import { RoleFormModal } from '../components/RoleFormModal';
 import { PermissionsDrawer } from '../components/PermissionsDrawer';
 import { StandardPageLayout } from '@src/components/ui/StandardPageLayout';
-import { FilterContainer, FilterSelect } from '@src/components/ui/StandardFilters';
 import { MobileDeleteConfirm } from '@src/components/MobileDeleteConfirm';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useAuth } from '@src/providers/auth-provider';
 import { PERMISSIONS } from '@src/core/permissions.constants';
 import { useDebounce } from '@src/core/hooks';
@@ -19,7 +17,6 @@ import { useDebounce } from '@src/core/hooks';
 const { Text } = Typography;
 
 export const RolesManagementPage = () => {
-    const { token } = theme.useToken();
     const screens = useBreakpoint();
     const isMobile = !screens.md;
 
@@ -31,7 +28,7 @@ export const RolesManagementPage = () => {
 
     // Filtros
     const [nameFilter, setNameFilter] = useState<string>('');
-    const debouncedNameFilter = useDebounce(nameFilter, 500);
+    const debouncedNameFilter = useDebounce(nameFilter, 250);
     const [statusFilter, setStatusFilter] = useState<boolean | undefined>(undefined);
 
     // Paginación
@@ -41,14 +38,13 @@ export const RolesManagementPage = () => {
     // Modals y Drawer
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [modalLoading, setModalLoading] = useState(false);
 
     const fetchData = useCallback((page: number, size: number) => {
         setLoading(true);
 
-        Promise.all([
+        return Promise.all([
             rolesService.getRoles({
                 name: debouncedNameFilter || undefined,
                 enable: statusFilter,
@@ -77,12 +73,6 @@ export const RolesManagementPage = () => {
     useEffect(() => {
         fetchData(1, pageSizeRef.current);
     }, [fetchData]);
-
-    // Pull-to-refresh para mobile
-    const { containerRef, pullDistance, isRefreshing: isPulling } = usePullToRefresh({
-        onRefresh: () => fetchData(1, pageSize),
-        enabled: isMobile,
-    });
 
     const handleCreate = () => {
         setSelectedRole(null);
@@ -126,8 +116,9 @@ export const RolesManagementPage = () => {
     const actionButtons = (record: Role) => (
         <Space size={isMobile ? 'middle' : 'small'}>
             {hasPermission(PERMISSIONS.ROLES.MANAGE) && (
-                <Tooltip title={record.is_system ? 'Bloqueado' : 'Editar'}>
+                <Tooltip title={record.is_system ? 'Rol de sistema: no se puede editar' : 'Editar'}>
                     <Button
+                        aria-label={`Editar el rol ${record.name}`}
                         type="text"
                         size={isMobile ? 'large' : 'middle'}
                         disabled={record.is_system}
@@ -137,8 +128,9 @@ export const RolesManagementPage = () => {
                 </Tooltip>
             )}
             {hasPermission(PERMISSIONS.ROLES.MANAGE) && (
-                <Tooltip title={record.is_system ? 'Protegido' : 'Eliminar'}>
+                <Tooltip title={record.is_system ? 'Rol de sistema: no se puede eliminar' : 'Eliminar'}>
                     <Button
+                        aria-label={`Eliminar el rol ${record.name}`}
                         type="text"
                         size={isMobile ? 'large' : 'middle'}
                         danger
@@ -152,6 +144,8 @@ export const RolesManagementPage = () => {
                                 okText: 'Eliminar',
                                 okType: 'danger',
                                 cancelText: 'Cancelar',
+                                // El foco arranca en Cancelar: un Enter por inercia no borra el rol.
+                                focusable: { autoFocusButton: 'cancel' },
                                 onOk: () => handleDelete(record.id)
                             });
                         }}
@@ -163,7 +157,7 @@ export const RolesManagementPage = () => {
 
     const columns = isMobile ? [
         {
-            title: 'Rol de Sistema',
+            title: 'Rol',
             key: 'name',
             render: (_: any, record: Role) => (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -173,7 +167,7 @@ export const RolesManagementPage = () => {
                             <Text strong>{record.name}</Text>
                             <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                 {record.is_system && <Tag color="purple">SISTEMA</Tag>}
-                                <Tag color={record.enable ? 'success' : 'error'}>
+                                <Tag color={record.enable ? 'success' : 'default'}>
                                     {record.enable ? 'ACTIVO' : 'INACTIVO'}
                                 </Tag>
                             </div>
@@ -188,7 +182,7 @@ export const RolesManagementPage = () => {
         },
     ] : [
         {
-            title: 'Rol de Sistema',
+            title: 'Rol',
             key: 'name',
             width: 280,
             sorter: (a: Role, b: Role) => a.name.localeCompare(b.name),
@@ -217,7 +211,7 @@ export const RolesManagementPage = () => {
             key: 'enable',
             width: 120,
             render: (_: any, record: Role) => (
-                <Tag color={record.enable ? 'success' : 'error'}>
+                <Tag color={record.enable ? 'success' : 'default'}>
                     {record.enable ? 'ACTIVO' : 'INACTIVO'}
                 </Tag>
             ),
@@ -232,50 +226,25 @@ export const RolesManagementPage = () => {
         },
     ];
 
-  const handleResetFilters = () => {
-    setNameFilter("");
-    setStatusFilter(undefined);
-    fetchData(1, pageSize);
-  };
-
-  const filtersNode = (
-    <FilterContainer>
-      <FilterSelect
-        label="Estado"
-        options={[
-          { label: "Activos", value: "true" },
-          { label: "Inactivos", value: "false" },
-        ]}
-        onChange={(val) => setStatusFilter(val === "true" ? true : val === "false" ? false : undefined)}
-        value={statusFilter === true ? "true" : statusFilter === false ? "false" : undefined}
-      />
-    </FilterContainer>
+  // Un solo filtro de tres valores: va a la vista, sin popover ni "Aplicar".
+  const filtroEstado = (
+    <Segmented
+      aria-label="Filtrar por estado"
+      size="large"
+      value={statusFilter === true ? "activos" : statusFilter === false ? "inactivos" : "todos"}
+      onChange={(v) => setStatusFilter(v === "activos" ? true : v === "inactivos" ? false : undefined)}
+      options={[
+        { label: "Todos", value: "todos" },
+        { label: "Activos", value: "activos" },
+        { label: "Inactivos", value: "inactivos" },
+      ]}
+    />
   );
 
   return (
-    <div
-      ref={containerRef}
-      style={{ height: "100%", display: "flex", flexDirection: "column" }}
-    >
-      {isMobile && (pullDistance > 0 || isPulling) && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: pullDistance || 40,
-          overflow: 'hidden',
-          transition: pullDistance === 0 ? 'height 0.2s ease' : undefined,
-          color: token.colorPrimary,
-          fontSize: 13,
-          gap: 8,
-        }}>
-          {isPulling ? <LoadingOutlined spin /> : <ReloadOutlined />}
-          {isPulling ? 'Actualizando...' : pullDistance >= 80 ? 'Soltar para actualizar' : 'Desliza hacia abajo'}
-        </div>
-      )}
-
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <StandardPageLayout
-        title="Control de Accesos"
+        title="Roles y permisos"
         subtitle="Gestiona los roles del sistema y niveles de permisos"
         icon={<SafetyCertificateOutlined />}
         totalCount={total}
@@ -283,19 +252,18 @@ export const RolesManagementPage = () => {
         onSearchChange={setNameFilter}
         onRefresh={() => fetchData(currentPage, pageSize)}
         primaryAction={{
-          label: "Nuevo Rol",
+          label: "Nuevo rol",
           onClick: handleCreate,
           canExecute: hasPermission(PERMISSIONS.ROLES.MANAGE),
         }}
         extraActions={
-          <Button icon={<KeyOutlined />} size="large" onClick={() => setIsDrawerOpen(true)}>
-            Glosario
-          </Button>
+          <>
+            {filtroEstado}
+            <Button icon={<KeyOutlined />} size="large" onClick={() => setIsDrawerOpen(true)}>
+              Ver permisos
+            </Button>
+          </>
         }
-        filters={filtersNode}
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
-        onClearFilters={handleResetFilters}
       >
         <div
           style={{
@@ -323,7 +291,6 @@ export const RolesManagementPage = () => {
               style: {
                 contentVisibility: "auto",
                 containIntrinsicSize: "0 80px",
-                cursor: "pointer",
               } as React.CSSProperties,
             })}
           />
@@ -347,7 +314,7 @@ export const RolesManagementPage = () => {
                   fetchData(page, size);
                 }}
                 showSizeChanger
-                showTotal={(total) => `Total: ${total} roles registrados`}
+                showTotal={(total) => `Total: ${total} roles`}
               />
             </div>
           )}
@@ -373,7 +340,7 @@ export const RolesManagementPage = () => {
       {isMobile && (
         <MobileDeleteConfirm
           open={!!deleteTarget}
-          title="Eliminar Rol"
+          title="¿Eliminar este rol?"
           description={`Se eliminarán todos los permisos asociados al rol "${deleteTarget?.name || ""}".`}
           onConfirm={confirmDeleteRole}
           onCancel={() => setDeleteTarget(null)}
