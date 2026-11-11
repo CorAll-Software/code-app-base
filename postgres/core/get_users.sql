@@ -26,7 +26,10 @@ BEGIN
             )) AS is_system_user,
             (SELECT COALESCE(json_agg(DISTINCT role_id), '[]'::json)
              FROM core.user_roles
-             WHERE user_id = u.id AND status = TRUE) AS rol_sistema
+             WHERE user_id = u.id AND status = TRUE) AS rol_sistema,
+            (SELECT COALESCE(json_agg(permission_id ORDER BY permission_id), '[]'::json)
+             FROM core.user_permissions
+             WHERE user_id = u.id AND status = TRUE) AS permisos_directos
         FROM core.users u
         WHERE u.status = TRUE
         ORDER BY

@@ -105,6 +105,7 @@ export const ENTIDADES_ETIQUETA: Record<string, string> = {
   permissions: "Permiso",
   role_permissions: "Permiso de rol",
   user_roles: "Rol de usuario",
+  user_permissions: "Permiso de usuario",
   user_sessions: "Sesión",
 };
 

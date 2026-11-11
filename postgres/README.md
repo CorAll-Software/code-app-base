@@ -96,12 +96,18 @@ Una función por archivo en `<schema>/<entidad>/`:
 ## Permisos efectivos
 
 `core.get_user_permissions(req json)` es la **única** definición de qué puede
-hacer un usuario: devuelve el array de slugs, aplicando el bypass de los roles
-de sistema. La usan `core.get_user_login_data` (payload de sesión) y el backend
+hacer un usuario: devuelve el array de slugs, que es la unión de los permisos
+de sus roles y los concedidos a él directamente (`core.user_permissions`),
+aplicando el bypass de los roles de sistema. La usan `core.get_user_login_data` (payload de sesión) y el backend
 para recargar la caché de Redis, así que la regla no se duplica en dos sitios.
 
 `core.list_users_by_role(req json)` devuelve los ids con un rol asignado. Es lo
 que permite invalidar la caché de los afectados al editar ese rol.
+
+Los permisos directos se guardan con el usuario: `core.save_user` recibe
+`permisos_directos` (array de ids de permiso) y sincroniza la tabla. Solo
+suman, no hay forma de quitarle a un usuario un permiso que le da un rol. Quien
+no es usuario de sistema solo puede conceder permisos que él mismo tiene.
 
 ## Auditoría (a nivel de BD)
 

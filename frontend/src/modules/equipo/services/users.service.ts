@@ -16,6 +16,8 @@ export interface UserData {
 
     // Roles
     rol_sistema?: number[];
+    /** Ids de permiso concedidos al usuario además de los de sus roles. */
+    permisos_directos?: number[];
     is_system_user?: boolean;
 }
 

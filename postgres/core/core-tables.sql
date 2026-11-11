@@ -104,6 +104,22 @@ CREATE TABLE IF NOT EXISTS core.user_roles (
     UNIQUE (user_id, role_id)
 );
 
+-- Permisos concedidos a un usuario en particular, además de los de sus roles.
+-- Solo suman: los permisos efectivos son la unión (core.get_user_permissions).
+CREATE TABLE IF NOT EXISTS core.user_permissions (
+    id            SERIAL PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES core.users(id),
+    permission_id INTEGER NOT NULL REFERENCES core.permissions(id),
+    status        BOOLEAN DEFAULT TRUE,
+    user_cr       INTEGER,
+    token_cr      UUID,
+    date_cr       BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+    user_up       INTEGER,
+    token_up      UUID,
+    date_up       BIGINT,
+    UNIQUE (user_id, permission_id)
+);
+
 -- La bitácora de auditoría NO vive aquí: es un esquema propio y transversal,
 -- `auditoria.log` (ver postgres/auditoria/). No se declara en `core` porque no
 -- es una tabla del núcleo de identidad, y porque su DDL trae consigo los

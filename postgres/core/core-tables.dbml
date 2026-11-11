@@ -114,6 +114,25 @@ Table core.user_roles {
   }
 }
 
+Table core.user_permissions {
+  id            serial  [pk]
+  user_id       integer [not null, ref: > core.users.id]
+  permission_id integer [not null, ref: > core.permissions.id]
+  status        boolean [default: true]
+  user_cr       integer
+  token_cr      uuid
+  date_cr       bigint  [default: `EXTRACT(EPOCH FROM NOW())::BIGINT`]
+  user_up       integer
+  token_up      uuid
+  date_up       bigint
+
+  Note: 'Permisos concedidos a un usuario además de los de sus roles'
+
+  indexes {
+    (user_id, permission_id) [unique]
+  }
+}
+
 // La bitácora de auditoría NO vive en core: es un esquema transversal propio.
 // Ver postgres/auditoria/auditoria-tables.dbml.
 

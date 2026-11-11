@@ -31,8 +31,7 @@ import {
   type UserData,
   usersService,
 } from "../services/users.service";
-import { rolesService } from "../../configuracion/services/roles.service";
-import type { Role } from "@src/core/types";
+import { type Permission, type Role, rolesService } from "../../configuracion/services/roles.service";
 import { capitalizeWords, getInitials } from "@src/core/parse";
 import { getColorString } from "@src/core/color";
 import { useDebounce } from "@src/core/hooks";
@@ -56,6 +55,7 @@ export const UsersManagementPage = () => {
   const [users, setUsers] = useState<UserData[]>([]);
   const [allUsers, setAllUsers] = useState<UserData[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [modalLoading, setModalLoading] = useState<boolean>(false);
 
@@ -103,12 +103,14 @@ export const UsersManagementPage = () => {
     rolesService
       .getRoles({ page: 1, page_size: 1000 })
       .then((res) => {
-        setRoles(res.data as unknown as Role[]);
+        setRoles(res.data);
       })
       .catch((error) =>
         console.error("Error al cargar datos estáticos:", error),
       )
       .finally(() => setLoading(false));
+    // Catálogo para los permisos específicos del formulario ([] si falla).
+    rolesService.getPermissions().then(setPermissions);
   }, []);
 
   const fetchAllUsers = useCallback(() => {
@@ -647,6 +649,7 @@ export const UsersManagementPage = () => {
         open={isFormModalOpen}
         user={selectedUser}
         roles={roles}
+        permissions={permissions}
         allUsers={allUsers}
         onCancel={() => setIsFormModalOpen(false)}
         onSave={handleSaveUser}

@@ -14,6 +14,8 @@ DECLARE
     v_dni           VARCHAR;
     v_cargo         VARCHAR;
     v_rol_sistema   JSON;
+    v_permisos      JSON;
+    v_permisos_actor JSON;
     v_email_final   VARCHAR;
     v_dni_final     VARCHAR;
     v_status_final  BOOLEAN;
@@ -42,12 +44,39 @@ BEGIN
     v_dni           := req->>'dni';
     v_cargo         := req->>'cargo';
     v_rol_sistema   := req->'rol_sistema';
+    -- Ids de permiso concedidos directamente; si no vienen, no se tocan.
+    v_permisos      := req->'permisos_directos';
+    IF json_typeof(v_permisos) IS DISTINCT FROM 'array' THEN
+        v_permisos := NULL;
+    END IF;
     v_user_cr       := (req->>'user_cr')::INTEGER;
     v_token_cr      := (req->>'token_cr')::UUID;
 
     -- Un usuario de sistema, o un rol de sistema, solo lo toca otro usuario de
     -- sistema (ver core/proteger_usuario_sistema.sql).
     PERFORM core.proteger_usuario_sistema(v_user_cr, NULLIF(v_id, 0), v_rol_sistema);
+
+    -- Nadie concede un permiso que él mismo no tiene (salvo un usuario de
+    -- sistema, que los tiene todos). Los que el usuario ya tenía no cuentan.
+    IF v_permisos IS NOT NULL AND NOT core.es_usuario_sistema(v_user_cr) THEN
+        v_permisos_actor := CASE WHEN v_user_cr IS NULL THEN '[]'::json
+            ELSE core.get_user_permissions(json_build_object('user_id', v_user_cr)) END;
+
+        IF EXISTS (
+            SELECT 1
+            FROM json_array_elements_text(v_permisos) elem
+            JOIN core.permissions p ON p.id = elem::INTEGER
+            WHERE p.slug NOT IN (SELECT json_array_elements_text(v_permisos_actor))
+              AND NOT EXISTS (
+                  SELECT 1 FROM core.user_permissions up
+                  WHERE up.user_id = NULLIF(v_id, 0)
+                    AND up.permission_id = p.id
+                    AND up.status = TRUE
+              )
+        ) THEN
+            RAISE EXCEPTION 'Solo puedes conceder permisos que tú mismo tienes.';
+        END IF;
+    END IF;
 
     -- Unicidad con los valores que QUEDARÁN en la fila (en una edición lo que
     -- no viene se conserva). ux_users_email_activo la respalda ante carreras.
@@ -130,6 +159,32 @@ BEGIN
                 date_up = EXTRACT(EPOCH FROM NOW())::BIGINT;
     END IF;
 
+    -- Permisos directos: se sincronizan con la lista recibida. Solo se tocan
+    -- las filas que cambian, para no llenar la bitácora de ediciones vacías.
+    IF v_permisos IS NOT NULL THEN
+        UPDATE core.user_permissions
+        SET status = FALSE,
+            user_up = v_user_cr,
+            token_up = v_token_cr,
+            date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
+        WHERE user_id = v_id
+          AND status = TRUE
+          AND permission_id NOT IN (
+              SELECT (json_array_elements_text(v_permisos))::INTEGER
+          );
+
+        INSERT INTO core.user_permissions (user_id, permission_id, status, user_cr, token_cr)
+        SELECT DISTINCT v_id, p.id, TRUE, v_user_cr, v_token_cr
+        FROM json_array_elements_text(v_permisos) elem
+        JOIN core.permissions p ON p.id = elem::INTEGER AND p.status = TRUE
+        ON CONFLICT (user_id, permission_id) DO UPDATE
+            SET status = TRUE,
+                user_up = EXCLUDED.user_cr,
+                token_up = EXCLUDED.token_cr,
+                date_up = EXTRACT(EPOCH FROM NOW())::BIGINT
+            WHERE core.user_permissions.status = FALSE;
+    END IF;
+
     -- Retornar usuario actualizado
     SELECT json_build_object(
         'id', u.id,
@@ -144,7 +199,9 @@ BEGIN
         'foto_url', u.foto_url,
         'cargo', u.cargo,
         'rol_sistema', (SELECT COALESCE(json_agg(DISTINCT role_id), '[]'::json)
-                        FROM core.user_roles WHERE user_id = u.id AND status = TRUE)
+                        FROM core.user_roles WHERE user_id = u.id AND status = TRUE),
+        'permisos_directos', (SELECT COALESCE(json_agg(permission_id ORDER BY permission_id), '[]'::json)
+                              FROM core.user_permissions WHERE user_id = u.id AND status = TRUE)
     ) INTO result
     FROM core.users u
     WHERE u.id = v_id;

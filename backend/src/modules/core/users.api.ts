@@ -118,6 +118,7 @@ export const UsersApi = new Elysia()
 
         // Parsear arrays de JSON (Elysia multipart puede enviar arrays como strings si vienen de FormData)
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
+        if (typeof data.permisos_directos === 'string') data.permisos_directos = JSON.parse(data.permisos_directos);
 
         if (data.password) {
             data.password_hash = await Bun.password.hash(data.password);
@@ -141,7 +142,9 @@ export const UsersApi = new Elysia()
             cargo: t.Optional(t.String()),
             enable: t.Optional(t.Any()),
             status: t.Optional(t.Any()),
-            rol_sistema: t.Optional(t.Any())
+            rol_sistema: t.Optional(t.Any()),
+            // Ids de permiso concedidos al usuario además de los de sus roles.
+            permisos_directos: t.Optional(t.Any())
         })
     })
     .put(`${path}`, async ({ body, set, headers, user }) => {
@@ -164,6 +167,7 @@ export const UsersApi = new Elysia()
 
         // Parsear campos complejos
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
+        if (typeof data.permisos_directos === 'string') data.permisos_directos = JSON.parse(data.permisos_directos);
 
         const result = await execProcedure('core.save_user', [data]);
         if (result.error) {
@@ -182,7 +186,8 @@ export const UsersApi = new Elysia()
             closed.forEach(notifySessionClose)
             notifyUserClose(data.id)
         } else {
-            // Puede haber cambiado `rol_sistema`: la caché de permisos ya no vale.
+            // Pueden haber cambiado `rol_sistema` o `permisos_directos`: la
+            // caché de permisos ya no vale.
             await invalidateUsersPermissions([data.id])
             notifyUserReload(data.id)
         }
@@ -199,7 +204,9 @@ export const UsersApi = new Elysia()
             cargo: t.Optional(t.String()),
             enable: t.Optional(t.Any()),
             status: t.Optional(t.Any()),
-            rol_sistema: t.Optional(t.Any())
+            rol_sistema: t.Optional(t.Any()),
+            // Ids de permiso concedidos al usuario además de los de sus roles.
+            permisos_directos: t.Optional(t.Any())
         })
     })
     .get(`${path}/:id`, async ({ params: { id }, set, user }) => {

@@ -35,6 +35,15 @@ BEGIN
                     AND rp.status  = TRUE
                     AND p.status   = TRUE
               )
+              OR EXISTS (
+                  SELECT 1
+                  FROM core.user_permissions up
+                  JOIN core.permissions      p ON p.id = up.permission_id
+                  WHERE up.user_id = u.id
+                    AND p.slug     = _slug
+                    AND up.status  = TRUE
+                    AND p.status   = TRUE
+              )
               OR (
                   _include_admin = TRUE
                   AND EXISTS (
