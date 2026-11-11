@@ -26,7 +26,7 @@ AS $function$
         SELECT id, first_name, last_name
           INTO _user_id, _first_name, _last_name
         FROM core.users
-        WHERE lower(email) = _email
+        WHERE email = _email
           AND status = TRUE
           AND enable = TRUE;
 

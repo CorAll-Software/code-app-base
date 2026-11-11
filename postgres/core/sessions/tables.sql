@@ -13,8 +13,6 @@ DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
     'ADMIN',            -- Cierre forzado por un administrador
     'PASSWORD_ATTEMPTS' -- Demasiados fallos con la contraseña actual (sesión posiblemente robada)
 ); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
--- Bases creadas antes de que existiera el valor.
-ALTER TYPE core.enum_session_revoke_reason ADD VALUE IF NOT EXISTS 'PASSWORD_ATTEMPTS';
 
 -- Una fila por sesión (dispositivo/navegador). El `id` es el `sid` que viaja
 -- dentro del access token y el que se graba como `token_cr`/`token_up` en el

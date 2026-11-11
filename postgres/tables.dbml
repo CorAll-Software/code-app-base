@@ -84,7 +84,7 @@ Table core.users {
   date_up       bigint
 
   indexes {
-    `lower(email)` [unique, name: 'ux_users_email_activo', note: 'WHERE status = TRUE']
+    email [unique, name: 'ux_users_email_activo', note: 'WHERE status = TRUE']
   }
 }
 

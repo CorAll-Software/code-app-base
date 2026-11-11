@@ -56,7 +56,7 @@ BEGIN
         v_dni_final    := v_dni;
         v_status_final := COALESCE(v_status, TRUE);
     ELSE
-        SELECT COALESCE(v_email, lower(email)), COALESCE(v_dni, dni), COALESCE(v_status, status)
+        SELECT COALESCE(v_email, email), COALESCE(v_dni, dni), COALESCE(v_status, status)
           INTO v_email_final, v_dni_final, v_status_final
         FROM core.users
         WHERE id = v_id;
@@ -64,7 +64,7 @@ BEGIN
 
     IF v_status_final AND EXISTS (
         SELECT 1 FROM core.users
-        WHERE lower(email) = v_email_final AND status = TRUE AND id != COALESCE(NULLIF(v_id, 0), -1)
+        WHERE email = v_email_final AND status = TRUE AND id != COALESCE(NULLIF(v_id, 0), -1)
     ) THEN
         RAISE EXCEPTION 'Ya existe un usuario activo con este correo electrónico: %', v_email_final;
     END IF;
@@ -105,7 +105,7 @@ BEGIN
         SET used = TRUE
         WHERE user_id = v_id
           AND used = FALSE
-          AND lower(email) IS DISTINCT FROM (SELECT lower(email) FROM core.users WHERE id = v_id);
+          AND email IS DISTINCT FROM (SELECT email FROM core.users WHERE id = v_id);
     END IF;
 
     -- Manejar roles

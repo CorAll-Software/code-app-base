@@ -8,7 +8,8 @@ DECLARE
 	_email varchar(150);
 BEGIN
 	-- Con `id` (rutas con sesión) por id; si no, por correo sin distinguir
-	-- mayúsculas (login). ux_users_email_activo garantiza una sola cuenta activa.
+	-- mayúsculas (login): se guarda normalizado y ux_users_email_activo
+	-- garantiza una sola cuenta activa.
 	_id := NULLIF(req ->> 'id', '')::integer;
 	_email := lower(trim(req ->> 'email'));
 
@@ -26,7 +27,7 @@ BEGIN
 	INTO result1
 	FROM core.users u
 	WHERE u.status = true
-	  AND CASE WHEN _id IS NOT NULL THEN u.id = _id ELSE lower(u.email) = _email END
+	  AND CASE WHEN _id IS NOT NULL THEN u.id = _id ELSE u.email = _email END
 	LIMIT 1;
 
 	RETURN result1;

@@ -24,8 +24,6 @@ DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
     'ADMIN',            -- Cierre forzado por un administrador
     'PASSWORD_ATTEMPTS' -- Demasiados fallos con la contraseña actual (sesión posiblemente robada)
 ); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
--- Bases creadas antes de que existiera el valor.
-ALTER TYPE core.enum_session_revoke_reason ADD VALUE IF NOT EXISTS 'PASSWORD_ATTEMPTS';
 
 -- ── Tablas ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +46,8 @@ CREATE TABLE IF NOT EXISTS core.users (
     id            SERIAL PRIMARY KEY,
     first_name    VARCHAR(100) NOT NULL,
     last_name     VARCHAR(100) NOT NULL,
-    email         VARCHAR(150) NOT NULL,
+    -- Siempre normalizado (minúsculas, sin espacios): save_user lo guarda así.
+    email         VARCHAR(150) NOT NULL CONSTRAINT ck_users_email_normalizado CHECK (email = lower(trim(email))),
     password_hash VARCHAR(255) NOT NULL,
     phone         VARCHAR(20),
     foto_url      VARCHAR(500),
@@ -65,10 +64,9 @@ CREATE TABLE IF NOT EXISTS core.users (
     date_up       BIGINT
 );
 
--- Un correo = una cuenta activa, sin distinguir mayúsculas. Parcial: un
--- borrado conserva su correo sin bloquear altas. Si ya hay duplicados, falla:
---   SELECT lower(email), count(*) FROM core.users WHERE status GROUP BY 1 HAVING count(*) > 1;
-CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_activo ON core.users (lower(email)) WHERE status = TRUE;
+-- Un correo = una cuenta activa (el CHECK ya lo deja en minúsculas). Parcial:
+-- un borrado conserva su correo sin bloquear altas.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_activo ON core.users (email) WHERE status = TRUE;
 
 CREATE TABLE IF NOT EXISTS core.roles (
     id          SERIAL PRIMARY KEY,
