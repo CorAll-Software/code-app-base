@@ -23,7 +23,11 @@ Pasos para convertir `app-base` en un proyecto real. En orden.
 ## 3. Configuración
 
 - [ ] `backend/`: `cp example.env .env` y completar:
-  - `JWT_SECRET` (generar uno fuerte: `openssl rand -base64 48`)
+  - `JWT_SECRET` (generar uno fuerte: `openssl rand -base64 48`). Obligatorio
+    y de 32 caracteres como mínimo: sin él el backend **no arranca**.
+  - `TRUSTED_PROXY_HOPS`: `2` (Cloudflare → Traefik, el valor por defecto).
+    Ver el punto de Traefik en §5b: sin él la ip de la bitácora es la
+    de Cloudflare.
   - `JWT_ACCESS_EXPIRE_IN` / `JWT_REFRESH_EXPIRE_IN` (vida del access token y de
     la sesión; 15 min / 7 días por defecto)
   - `DB_*` (PostgreSQL 18+, se usa `uuidv7()` nativo), `REDIS_URL`
@@ -147,6 +151,46 @@ INSERT INTO core.user_roles (user_id, role_id) VALUES (1, 1);
       tiene runtime de Node: se compila y lo sirve `nginx:alpine-slim` con
       `frontend/nginx.conf`, y su entorno sale del `BUILD_MODE` del build
       (`prod` → `.env.production`, `qas` → `.env.qas`).
+- [ ] Traefik de Dokploy (*Web Server → Traefik → traefik.yml*) confía **solo**
+      en los rangos de Cloudflare, para conservar el `X-Forwarded-For` que
+      trae Cloudflare. Con otro origen Traefik descarta la cabecera y escribe la
+      ip real, así que saltarse Cloudflare no permite falsearla. Rangos vigentes
+      en <https://www.cloudflare.com/ips/>; se configura una vez por servidor:
+
+      ```yaml
+      entryPoints:
+        websecure:
+          address: :443
+          forwardedHeaders:
+            trustedIPs:
+              # IPv4
+              - 173.245.48.0/20
+              - 103.21.244.0/22
+              - 103.22.200.0/22
+              - 103.31.4.0/22
+              - 141.101.64.0/18
+              - 108.162.192.0/18
+              - 190.93.240.0/20
+              - 188.114.96.0/20
+              - 197.234.240.0/22
+              - 198.41.128.0/17
+              - 162.158.0.0/15
+              - 104.16.0.0/13
+              - 104.24.0.0/14
+              - 172.64.0.0/13
+              - 131.0.72.0/22
+              # IPv6
+              - 2400:cb00::/32
+              - 2606:4700::/32
+              - 2803:f800::/32
+              - 2405:b500::/32
+              - 2405:8100::/32
+              - 2a06:98c0::/29
+              - 2c0f:f248::/32
+      ```
+
+      Comprobarlo con una acción cualquiera: en `auditoria.log` debe quedar
+      la ip pública del cliente, no una de los rangos de arriba.
 - [ ] `DOMAIN_FRONTEND` con `https://` en producción: de su esquema sale el
       atributo `Secure` de las cookies de sesión (`COOKIE_SECURE` lo fuerza si
       hace falta). No depende de `NODE_ENV`, que el build sustituye en el bundle.

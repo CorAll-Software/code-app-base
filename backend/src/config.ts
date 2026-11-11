@@ -45,7 +45,7 @@ const corsOrigins = [
 ];
 
 /** Proxies de confianza delante del backend (ver ipCliente en core/auditoria.ts). */
-const trustedProxyHops = Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "1", 10) || 0);
+const trustedProxyHops = Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "2", 10) || 0);
 
 /**
  * Secure de las cookies de sesión, decidido al arrancar y no con NODE_ENV (que

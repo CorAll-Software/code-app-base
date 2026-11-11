@@ -31,8 +31,11 @@ export type OperacionAuditoria =
 /**
  * Ip del cliente según X-Forwarded-For, contando `TRUSTED_PROXY_HOPS` desde la
  * derecha: cada proxy agrega ahí a quien le habló, y lo de más a la izquierda
- * lo puede escribir el cliente. Con 0 proxies devuelve null. X-Real-IP solo
- * sirve de respaldo cuando no hay X-Forwarded-For.
+ * lo puede escribir el cliente. Sin proxies o sin la cabecera devuelve null.
+ *
+ * Con Cloudflare → Traefik (2 saltos) la cadena llega `cliente, ip_cloudflare`.
+ * Sin Cloudflare llega solo `cliente` y, al haber menos entradas que saltos, se
+ * toma la primera: la escribió Traefik, que descarta la que manda el cliente.
  */
 export const ipCliente = (headers: any): string | null => {
     const saltos = configServer.trustedProxyHops;
@@ -40,11 +43,7 @@ export const ipCliente = (headers: any): string | null => {
 
     const cadena = (headers?.['x-forwarded-for'] || '').toString()
         .split(',').map((p: string) => p.trim()).filter(Boolean);
-    if (cadena.length) {
-        // Menos entradas que proxies: la más a la izquierda la escribió el primero.
-        return cadena[Math.max(0, cadena.length - saltos)] || null;
-    }
-    return (headers?.['x-real-ip'] || '').toString().trim() || null;
+    return cadena[Math.max(0, cadena.length - saltos)] ?? null;
 };
 
 /**
