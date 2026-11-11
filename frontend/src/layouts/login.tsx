@@ -68,7 +68,7 @@ export const Login = () => {
 
     return (
         <Row gutter={[16, 16]} style={{ height: '100vh', margin: 0 }}>
-                <Col xs={0} md={14} xl={18}>
+                <Col xs={0} md={14} xl={16}>
                     <div className='flex-center' style={{ height: '100vh' }}>
                         <img
                             style={{ width: '100%', maxWidth: '700px' }}
@@ -76,50 +76,63 @@ export const Login = () => {
                             alt='' />
                     </div>
                 </Col>
-                <Col xs={24} md={10} xl={6} className='flex flex-column justify-center' style={{ padding: '0 20px' }}>
-                    <header className="flex-center">
-                        <h3 className='text-25'> Bienvenido! </h3>
+                <Col xs={24} md={10} xl={8} className='flex flex-column justify-center align-center' style={{ padding: '0 20px' }}>
+                    <div style={{ width: '100%', maxWidth: 360 }}>
+                    <header>
+                        <h1 style={{ fontSize: 28, lineHeight: 1.2, letterSpacing: '-0.02em', margin: '0 0 24px' }}>Iniciar sesión</h1>
                     </header>
                     <Form
                         name="normal_login"
+                        layout="vertical"
+                        requiredMark={false}
                         initialValues={{ remember: true }}
                         onFinish={onFinish}
                     >
                         <Form.Item
                             name="email"
+                            label="Correo electrónico"
                             rules={[
-                                { required: true, message: '¡Por favor ingrese su email!' },
+                                { required: true, message: 'Ingresa tu correo electrónico' },
                                 { 
                                     pattern: /^[a-zA-Z0-9._%+-åäöÅÄÖñÑáéíóúÁÉÍÓÚüÜ]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 
-                                    message: '¡Por favor ingrese un email válido!' 
+                                    message: 'Ingresa un correo válido, como nombre@empresa.com'
                                 }
                             ]}
                         >
-                            <Input prefix={<UserOutlined className="site-form-item-icon" />} placeholder="Email" />
+                            <Input
+                                prefix={<UserOutlined className="site-form-item-icon" />}
+                                placeholder="nombre@empresa.com"
+                                size="large"
+                                inputMode="email"
+                                autoComplete="username"
+                                autoCapitalize="none"
+                            />
                         </Form.Item>
                         <Form.Item
                             name="password"
-                            rules={[{ required: true, message: '¡Por favor ingrese su contraseña!' }]}
+                            label="Contraseña"
+                            rules={[{ required: true, message: 'Ingresa tu contraseña' }]}
                         >
                             <Input.Password
                                 prefix={<LockOutlined className="site-form-item-icon" />}
-                                type="password"
-                                placeholder="Contraseña"
+                                size="large"
+                                autoComplete="current-password"
                             />
                         </Form.Item>
                         <CapCaptcha ref={captchaRef} anchorRef={submitRef} />
-                        <Button ref={submitRef} type="primary" htmlType="submit" className="button-login w-100 my-10" loading={loading}>
+                        <Button ref={submitRef} type="primary" htmlType="submit" size="large" block className="my-10" loading={loading}>
                             Iniciar sesión
                         </Button>
                         <div className="text-center mt-10">
                             <Link to="/forgot-password" className="login-form-forgot">
-                                ¿Te has olvidado la contraseña?
+                                ¿Olvidaste tu contraseña?
                             </Link>
                         </div>
                     </Form>
-                    <footer className="footer-login">
+                    <footer className="text-center" style={{ marginTop: 32, fontSize: 12, color: 'rgba(0, 0, 0, 0.6)' }}>
                         <p>© {new Date().getFullYear()} Todos los derechos reservados</p>
                     </footer>
+                    </div>
                 </Col>
             </Row>
     )

@@ -88,7 +88,16 @@ export const NavProgress = () => {
     else store.done();
   }, [loading]);
 
-  if (!loading) return null;
+  // El velo solo aparece si la carga se alarga: en una navegación instantánea
+  // sería un parpadeo. La barra superior sí responde de inmediato.
+  const [velo, setVelo] = useState(false);
+  useEffect(() => {
+    if (!loading) { setVelo(false); return; }
+    const t = setTimeout(() => setVelo(true), 150);
+    return () => clearTimeout(t);
+  }, [loading]);
+
+  if (!loading || !velo) return null;
 
   return (
     <div
@@ -99,8 +108,7 @@ export const NavProgress = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(255, 255, 255, 0.45)",
-        backdropFilter: "blur(1px)",
+        background: "rgba(255, 255, 255, 0.6)",
         pointerEvents: "none",
       }}
     >

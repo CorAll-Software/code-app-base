@@ -1,4 +1,4 @@
-import { LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
+import { CheckCircleFilled, LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useFeedback } from '@src/providers/message.provider';
 import { authService } from '@src/services/auth.service';
 import { Button, Form, Input, Steps, Typography } from 'antd';
@@ -130,7 +130,7 @@ export const ForgotPasswordPage = () => {
                             name="email"
                             label="Correo electrónico"
                             rules={[
-                                { required: true, message: 'Por favor ingresa tu correo electrónico' },
+                                { required: true, message: 'Ingresa tu correo electrónico' },
                                 { type: 'email', message: 'Ingresa un correo válido' }
                             ]}
                         >
@@ -163,7 +163,7 @@ export const ForgotPasswordPage = () => {
                             label="Código de recuperación"
                             className="recovery-code-input"
                             rules={[
-                                { required: true, message: 'Por favor ingresa el código' },
+                                { required: true, message: 'Ingresa el código' },
                                 { len: 6, message: 'El código debe tener 6 dígitos' }
                             ]}
                         >
@@ -196,7 +196,7 @@ export const ForgotPasswordPage = () => {
                                 size="large"
                                 block
                             >
-                                Volver atrás
+                                Usar otro correo
                             </Button>
                         </Form.Item>
                     </Form>
@@ -210,7 +210,7 @@ export const ForgotPasswordPage = () => {
                             label="Nueva contraseña"
                             hasFeedback
                             rules={[
-                                { required: true, message: 'Por favor ingresa la nueva contraseña' },
+                                { required: true, message: 'Ingresa la nueva contraseña' },
                                 { min: 8, message: 'La contraseña debe tener al menos 8 caracteres' },
                                 { max: 128, message: 'La contraseña no puede superar los 128 caracteres' },
                                 {
@@ -231,7 +231,7 @@ export const ForgotPasswordPage = () => {
                             dependencies={['new_password']}
                             hasFeedback
                             rules={[
-                                { required: true, message: 'Por favor confirma la contraseña' },
+                                { required: true, message: 'Confirma la contraseña' },
                                 ({ getFieldValue }) => ({
                                     validator(_, value) {
                                         if (!value || getFieldValue('new_password') === value) {
@@ -265,7 +265,7 @@ export const ForgotPasswordPage = () => {
                 return (
                     <div className="text-center">
                         <div className="mb-4">
-                            <div className="success-icon">✅</div>
+                            <CheckCircleFilled className="success-icon" aria-hidden />
                             <Title level={3}>¡Contraseña actualizada!</Title>
                             <Text type="secondary">
                                 Tu contraseña ha sido cambiada exitosamente.

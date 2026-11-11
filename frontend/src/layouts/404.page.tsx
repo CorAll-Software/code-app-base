@@ -1,11 +1,22 @@
-import { Result } from 'antd';
+import { Button, Result } from 'antd';
+import { Link } from 'react-router-dom';
 
-export const NotFoundPage = () => {
+interface NotFoundPageProps {
+    /** Texto bajo la ilustración. Por defecto, el de página inexistente. */
+    mensaje?: string;
+}
+
+export const NotFoundPage = ({ mensaje = 'Esta página no existe.' }: NotFoundPageProps) => {
     return (
         <div className='flex-center'>
             <Result
-                subTitle="Lo sentimos, la página que ha visitado no existe."
-                icon={<img src="/svg/404.svg" alt="404 Not Found" style={{ width: '100%' }} />}
+                subTitle={mensaje}
+                icon={<img src="/svg/404.svg" alt="" style={{ width: '100%' }} />}
+                extra={
+                    <Link to="/">
+                        <Button type="primary">Ir al inicio</Button>
+                    </Link>
+                }
             />
         </div>
     )
