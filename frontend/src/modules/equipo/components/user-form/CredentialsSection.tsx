@@ -34,16 +34,20 @@ export const CredentialsSection = ({
             "!@#$%&*"
         ];
 
-        let password = "";
-        requiredChars.forEach(charSet => {
-            password += charSet.charAt(Math.floor(Math.random() * charSet.length));
-        });
+        // Generador del navegador, no Math.random (predecible): es una credencial.
+        const randomIndex = (max: number) => crypto.getRandomValues(new Uint32Array(1))[0] % max;
 
-        for (let i = password.length; i < length; i++) {
-            password += charset.charAt(Math.floor(Math.random() * charset.length));
+        const chars = requiredChars.map(charSet => charSet.charAt(randomIndex(charSet.length)));
+        while (chars.length < length) {
+            chars.push(charset.charAt(randomIndex(charset.length)));
         }
 
-        const shuffled = password.split('').sort(() => Math.random() - 0.5).join('');
+        // Fisher-Yates: sort() con un comparador aleatorio no baraja de forma uniforme.
+        for (let i = chars.length - 1; i > 0; i--) {
+            const j = randomIndex(i + 1);
+            [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        const shuffled = chars.join('');
         form.setFieldsValue({ 
             password: shuffled,
             confirm: shuffled
