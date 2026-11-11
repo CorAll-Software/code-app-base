@@ -4,7 +4,6 @@ import type { RouteObject } from "react-router-dom";
 import type { ComponentType } from "react";
 import { NotFoundPage } from "./layouts/404.page";
 import { Home } from "./layouts/home.page";
-import { ProfilePage } from "./layouts/profile.page";
 import { PermissionRoute } from "./layouts/permission-route";
 import { RouteErrorBoundary } from "./layouts/error-boundary";
 import { PERMISSIONS, type PermisoSlug } from "./core/permissions.constants";
@@ -106,6 +105,5 @@ const conPantallaDeError = (route: RouteObject): RouteObject => ({
 export const childRoutes: RouteObject[] = [
   { index: true, element: <Home /> },
   ...moduleRouteObjects,
-  { path: "profile", element: <ProfilePage /> },
   { path: "*", element: <NotFoundPage /> },
 ].map(conPantallaDeError);

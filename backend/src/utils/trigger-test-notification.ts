@@ -24,7 +24,7 @@ async function main(): Promise<void> {
         message: '¡Funciona! Esta notificación se guardó en core.notifications.',
         type: 'info',
         module: 'core',
-        link: '/profile',
+        link: '/',
     });
 
     if (result.error) {
