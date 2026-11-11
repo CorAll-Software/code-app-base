@@ -14,7 +14,8 @@ DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
     'MANUAL',           -- El usuario la cerró desde "Sesiones" (otro dispositivo)
     'PASSWORD_CHANGE',  -- Cambio/restablecimiento de contraseña
     'REUSE_DETECTED',   -- Se presentó un refresh token ya rotado (posible robo)
-    'ADMIN'             -- Cierre forzado por un administrador
+    'ADMIN',            -- Cierre forzado por un administrador
+    'PASSWORD_ATTEMPTS' -- Demasiados fallos con la contraseña actual (sesión posiblemente robada)
 ); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Tablas ───────────────────────────────────────────────────────────────────
@@ -38,7 +39,8 @@ CREATE TABLE IF NOT EXISTS core.users (
     id            SERIAL PRIMARY KEY,
     first_name    VARCHAR(100) NOT NULL,
     last_name     VARCHAR(100) NOT NULL,
-    email         VARCHAR(150) NOT NULL,
+    -- Siempre normalizado (minúsculas, sin espacios): save_user lo guarda así.
+    email         VARCHAR(150) NOT NULL CONSTRAINT ck_users_email_normalizado CHECK (email = lower(trim(email))),
     password_hash VARCHAR(255) NOT NULL,
     phone         VARCHAR(20),
     foto_url      VARCHAR(500),
@@ -54,6 +56,10 @@ CREATE TABLE IF NOT EXISTS core.users (
     token_up      UUID,
     date_up       BIGINT
 );
+
+-- Un correo = una cuenta activa (el CHECK ya lo deja en minúsculas). Parcial:
+-- un borrado conserva su correo sin bloquear altas.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_activo ON core.users (email) WHERE status = TRUE;
 
 CREATE TABLE IF NOT EXISTS core.roles (
     id          SERIAL PRIMARY KEY,
@@ -96,6 +102,22 @@ CREATE TABLE IF NOT EXISTS core.user_roles (
     token_up UUID,
     date_up  BIGINT,
     UNIQUE (user_id, role_id)
+);
+
+-- Permisos concedidos a un usuario en particular, además de los de sus roles.
+-- Solo suman: los permisos efectivos son la unión (core.get_user_permissions).
+CREATE TABLE IF NOT EXISTS core.user_permissions (
+    id            SERIAL PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES core.users(id),
+    permission_id INTEGER NOT NULL REFERENCES core.permissions(id),
+    status        BOOLEAN DEFAULT TRUE,
+    user_cr       INTEGER,
+    token_cr      UUID,
+    date_cr       BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+    user_up       INTEGER,
+    token_up      UUID,
+    date_up       BIGINT,
+    UNIQUE (user_id, permission_id)
 );
 
 -- La bitácora de auditoría NO vive aquí: es un esquema propio y transversal,

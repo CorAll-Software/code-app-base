@@ -23,6 +23,37 @@ const sello = typeof __SELLO_BUILD__ !== "undefined" ? __SELLO_BUILD__ : SELLO_S
 
 const version = `${pkg.version}+${sello}`;
 
+/**
+ * Secreto de los access tokens: obligatorio y sin valor por defecto (con uno
+ * conocido cualquiera podría firmarse un token). Mínimo 32 caracteres.
+ */
+const JWT_SECRET_MIN = 32;
+const jwtSecret = (process.env.JWT_SECRET || "").trim();
+if (jwtSecret.length < JWT_SECRET_MIN) {
+  throw new Error(
+    `JWT_SECRET no está definido o tiene menos de ${JWT_SECRET_MIN} caracteres. El backend no arranca sin un secreto fuerte.`,
+  );
+}
+
+/** Orígenes que pueden llamar a la API con credenciales: DOMAIN_FRONTEND + CORS_ORIGINS. */
+const normalizarOrigen = (origen: string) => origen.trim().replace(/\/+$/, "");
+const domainFrontend = process.env.DOMAIN_FRONTEND || "http://localhost:5004";
+const corsOrigins = [
+  ...new Set(
+    [domainFrontend, ...(process.env.CORS_ORIGINS || "").split(",")].map(normalizarOrigen).filter(Boolean),
+  ),
+];
+
+/** Proxies de confianza delante del backend (ver ipCliente en core/auditoria.ts). */
+const trustedProxyHops = Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "2", 10) || 0);
+
+/**
+ * Secure de las cookies de sesión, decidido al arrancar y no con NODE_ENV (que
+ * Bun.build sustituye al construir): COOKIE_SECURE, o https en DOMAIN_FRONTEND.
+ */
+const cookieSecureEnv = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
+const cookieSecure = cookieSecureEnv ? cookieSecureEnv === "true" : !domainFrontend.startsWith("http://");
+
 // Entorno que se reporta a Sentry. El Dockerfile ya exporta NODE_ENV=production,
 // así que un despliegue con Docker queda en "production" sin tocar nada.
 const sentryEnvironment = (process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development").trim();
@@ -34,9 +65,16 @@ export const configServer = {
   team: process.env.TEAM_NAME || "Mi Empresa",
   timeZone: process.env.TZ || "America/Lima",
   port: parseInt(process.env.PORT || "3000", 10),
-  domain: process.env.DOMAIN_FRONTEND || "http://localhost:5004",
+  domain: domainFrontend,
+  trustedProxyHops,
+  cors: {
+    origins: corsOrigins,
+    /** ¿Este origen (cabecera `Origin`) está en la lista permitida? */
+    isAllowed: (origen: string) => corsOrigins.includes(normalizarOrigen(origen)),
+  },
   auth: {
-    secret: process.env.JWT_SECRET || "default_secret",
+    secret: jwtSecret,
+    cookieSecure,
     // Access token (JWT): vida corta, se renueva con el refresh token.
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRE_IN ? parseInt(process.env.JWT_ACCESS_EXPIRE_IN, 10) : 15 * 60, // 15 min por defecto
     // Sesión / refresh token rotativo: se extiende en cada renovación.
@@ -58,7 +96,6 @@ export const configServer = {
     secure: process.env.EMAIL_SECURE === "true" || false,
     user: process.env.EMAIL_USER || "",
     password: process.env.EMAIL_PASSWORD || "",
-    formWeb: process.env.EMAIL_FORM_WEB || "",
   },
   s3: {
     baseUrl: process.env.AWS_S3_BASE_URL!,
@@ -90,9 +127,6 @@ export const configServer = {
     secretKey: capSecretKey,
     enabled: Boolean(capApiEndpoint && capSecretKey),
     timeoutMs: parseInt(process.env.CAP_TIMEOUT_MS || "8000", 10),
-  },
-  webhooks: {
-    emailSecret: process.env.WEBHOOK_EMAIL_SECRET || "",
   },
   /**
    * Sentry · reporte de errores (instancia autoalojada).

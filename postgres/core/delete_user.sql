@@ -16,6 +16,8 @@ BEGIN
     v_user_cr := (req->>'user_cr')::INTEGER;
     v_token_cr := (req->>'token_cr')::UUID;
 
+    PERFORM core.proteger_usuario_sistema(v_user_cr, v_id);
+
     UPDATE core.users
     SET status = FALSE,
         user_up = v_user_cr,

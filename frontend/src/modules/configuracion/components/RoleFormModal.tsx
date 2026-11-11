@@ -1,15 +1,9 @@
-import { CheckOutlined, KeyOutlined, SafetyCertificateOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
-import { Badge, Button, Checkbox, Drawer, Empty, Form, Grid, Input, Modal, Space, Tabs, Tree, Typography, message, theme } from "antd";
-import { type Key, useEffect, useMemo, useState } from "react";
-import {
-  type PermissionTreeNode,
-  buildPermissionTree,
-  collectGroupKeys,
-  filterPermissions,
-} from "../services/modules.config";
+import { CheckOutlined, KeyOutlined, SafetyCertificateOutlined, SettingOutlined } from "@ant-design/icons";
+import { Button, Checkbox, Drawer, Empty, Form, Grid, Input, Modal, Space, Tabs, message } from "antd";
+import { useEffect, useState } from "react";
 import type { Permission, Role } from "../services/roles.service";
+import { PermissionsTree } from "./PermissionsTree";
 
-const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,122 +18,6 @@ interface RoleFormModalProps {
   onCancel: () => void;
   onSave: (values: any) => void;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PermissionsTree — selector de permisos en árbol (un solo panel, auto-agrupado)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface PermissionsTreeProps {
-  value?: string[];
-  onChange?: (keys: string[]) => void;
-  permissions: Permission[];
-}
-
-const isLeafKey = (key: Key): boolean => /^\d+$/.test(String(key));
-
-const PermissionsTree = ({ value: selectedKeys = [], onChange, permissions }: PermissionsTreeProps) => {
-  const { token } = theme.useToken();
-  const [search, setSearch] = useState("");
-
-  const filtered = useMemo(() => filterPermissions(permissions, search), [permissions, search]);
-  const treeData = useMemo(() => buildPermissionTree(filtered), [filtered]);
-  const allGroupKeys = useMemo(() => collectGroupKeys(treeData), [treeData]);
-
-  const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
-  useEffect(() => { setExpandedKeys(allGroupKeys); }, [allGroupKeys]);
-
-  const titleRender = (node: PermissionTreeNode) => {
-    if (node.isGroup) {
-      const isRoot = node.depth === 0;
-      return (
-        <Text
-          strong={isRoot}
-          type={isRoot ? undefined : "secondary"}
-          style={{
-            fontSize: isRoot ? 13 : 12,
-            letterSpacing: isRoot ? "0.04em" : undefined,
-          }}
-        >
-          {node.title}
-        </Text>
-      );
-    }
-    return (
-      <Space vertical size={0}>
-        <Text style={{ fontSize: 13 }}>{node.title}</Text>
-        <Text style={{ fontSize: 10, fontFamily: "monospace", color: token.colorTextQuaternary }}>
-          {node.slug}
-        </Text>
-      </Space>
-    );
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Input
-          size="small"
-          placeholder="Buscar permiso..."
-          prefix={<SearchOutlined />}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          allowClear
-        />
-        <Badge count={selectedKeys.length} overflowCount={999} color={token.colorPrimary} />
-      </div>
-
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 2,
-        paddingBottom: 4,
-        borderBottom: `1px solid ${token.colorBorderSecondary}`,
-      }}>
-        <Text type="secondary" style={{ fontSize: 11 }}>
-          {selectedKeys.length} / {permissions.length} permisos
-        </Text>
-        <Space size={2}>
-          <Button type="link" size="small" style={{ fontSize: 11, padding: "0 4px" }} onClick={() => setExpandedKeys(allGroupKeys)}>
-            Expandir todo
-          </Button>
-          <Text type="secondary" style={{ fontSize: 11 }}>·</Text>
-          <Button type="link" size="small" style={{ fontSize: 11, padding: "0 4px" }} onClick={() => setExpandedKeys([])}>
-            Colapsar todo
-          </Button>
-        </Space>
-      </div>
-
-      <div style={{
-        height: 400,
-        overflowY: "auto",
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadiusLG,
-        padding: "4px 8px",
-      }}>
-        {treeData.length === 0 ? (
-          <Empty description="Sin permisos" style={{ padding: "40px 0" }} />
-        ) : (
-          <Tree
-            checkable
-            selectable={false}
-            blockNode
-            checkedKeys={selectedKeys}
-            onCheck={(checked) => {
-              const next = (checked as Key[]).filter(isLeafKey).map(String);
-              onChange?.(next);
-            }}
-            expandedKeys={expandedKeys}
-            onExpand={(ks) => setExpandedKeys(ks)}
-            treeData={treeData as any}
-            fieldNames={{ title: "title", key: "key", children: "children" }}
-            titleRender={titleRender as any}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RoleFormModal

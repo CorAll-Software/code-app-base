@@ -31,13 +31,19 @@ export const ProfilePage = () => {
         }
     }, [auth.user, formData]);
 
-    const handleUpdateProfile = async (values: any) => {
+    // Cambiar el correo exige la contraseña actual (el backend la pide).
+    const emailActual = Form.useWatch('email', formData);
+    const cambiaCorreo = (emailActual ?? '').trim().toLowerCase() !== (auth.user?.email ?? '').trim().toLowerCase();
+
+    const handleUpdateProfile = async ({ currentPassword, ...values }: any) => {
         setLoading(true);
         const res = await authService.updateProfile({
             id: auth.user.id,
-            ...values
+            ...values,
+            ...(cambiaCorreo ? { currentPassword } : {}),
         });
         if (res) {
+            formData.setFieldValue('currentPassword', undefined);
             auth.login({ ...auth.user, ...values }, auth.expiredIn);
         }
         setLoading(false);
@@ -88,6 +94,16 @@ export const ProfilePage = () => {
                     >
                         <Input prefix={<UserOutlined />} />
                     </Form.Item>
+                    {cambiaCorreo && (
+                        <Form.Item
+                            name="currentPassword"
+                            label="Contraseña actual"
+                            extra="Para cambiar el correo electrónico, confirma tu contraseña."
+                            rules={[{ required: true, message: 'Ingresa tu contraseña actual' }]}
+                        >
+                            <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+                        </Form.Item>
+                    )}
                     <Form.Item
                         name="telefono"
                         label="Teléfono"
@@ -141,7 +157,8 @@ export const ProfilePage = () => {
                         hasFeedback
                         rules={[
                             { required: true, message: 'Ingrese la nueva contraseña' },
-                            { min: 6, message: 'Mínimo 6 caracteres' },
+                            { min: 8, message: 'Mínimo 8 caracteres' },
+                            { max: 128, message: 'Máximo 128 caracteres' },
                             {
                                 pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%&*])/,
                                 message: "Debe incluir mayúscula, minúscula, número y carácter especial (!@#$%&*)"

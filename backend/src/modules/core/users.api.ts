@@ -9,8 +9,6 @@ import { PERMISSIONS } from '@core/permissions.constants';
 import { buildKeyObject, getS3ObjectUrl, uploadToS3Private } from '@core/s3';
 import { configServer } from '@/config';
 
-const { hashSync } = Bun.password;
-
 const path = '/users';
 
 const USER_FIELD_LIMITS: Record<string, { label: string; max: number }> = {
@@ -24,6 +22,24 @@ const USER_FIELD_LIMITS: Record<string, { label: string; max: number }> = {
 
 const FOTO_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const FOTO_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const FOTO_EXTENSION: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+};
+
+/**
+ * Tipo real de la imagen según sus primeros bytes, o `null` si no es JPEG, PNG
+ * ni WebP. El `type` del multipart lo declara el cliente y no prueba nada.
+ */
+async function detectarTipoImagen(file: File): Promise<string | null> {
+    const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const ascii = (desde: number, hasta: number) => String.fromCharCode(...b.slice(desde, hasta));
+    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+    if (b.length >= 8 && b[0] === 0x89 && ascii(1, 4) === 'PNG' && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png';
+    if (b.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+    return null;
+}
 
 function validateUserFieldLengths(body: Record<string, any>): string | null {
     for (const [field, { label, max }] of Object.entries(USER_FIELD_LIMITS)) {
@@ -67,8 +83,8 @@ const enrichWithFileUrl = async (data: any) => {
 export const UsersApi = new Elysia()
     .use(authPlugin)
     .get(`${path}/combo`, async ({ set }) => {
-        // Endpoint ligero para selectores de asignación — cualquier usuario autenticado puede usarlo
-        const usersResult = await execProcedure('core.get_users', [{}]);
+        // Para selectores: basta la sesión, así que solo id, nombre y cargo.
+        const usersResult = await execProcedure('core.get_users_combo', [{}]);
         if (usersResult.error) {
             set.status = 400;
             return { message: usersResult.error };
@@ -102,9 +118,10 @@ export const UsersApi = new Elysia()
 
         // Parsear arrays de JSON (Elysia multipart puede enviar arrays como strings si vienen de FormData)
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
+        if (typeof data.permisos_directos === 'string') data.permisos_directos = JSON.parse(data.permisos_directos);
 
         if (data.password) {
-            data.password_hash = hashSync(data.password);
+            data.password_hash = await Bun.password.hash(data.password);
             delete data.password;
         }
         const result = await execProcedure('core.save_user', [data]);
@@ -119,13 +136,15 @@ export const UsersApi = new Elysia()
             first_name: t.String(),
             last_name: t.String(),
             email: t.String(),
-            password: t.Optional(t.String()),
+            password: t.Optional(t.String({ minLength: 8, maxLength: 128 })),
             phone: t.Optional(t.String()),
             dni: t.Optional(t.String()),
             cargo: t.Optional(t.String()),
             enable: t.Optional(t.Any()),
             status: t.Optional(t.Any()),
-            rol_sistema: t.Optional(t.Any())
+            rol_sistema: t.Optional(t.Any()),
+            // Ids de permiso concedidos al usuario además de los de sus roles.
+            permisos_directos: t.Optional(t.Any())
         })
     })
     .put(`${path}`, async ({ body, set, headers, user }) => {
@@ -148,6 +167,7 @@ export const UsersApi = new Elysia()
 
         // Parsear campos complejos
         if (typeof data.rol_sistema === 'string') data.rol_sistema = JSON.parse(data.rol_sistema);
+        if (typeof data.permisos_directos === 'string') data.permisos_directos = JSON.parse(data.permisos_directos);
 
         const result = await execProcedure('core.save_user', [data]);
         if (result.error) {
@@ -166,7 +186,8 @@ export const UsersApi = new Elysia()
             closed.forEach(notifySessionClose)
             notifyUserClose(data.id)
         } else {
-            // Puede haber cambiado `rol_sistema`: la caché de permisos ya no vale.
+            // Pueden haber cambiado `rol_sistema` o `permisos_directos`: la
+            // caché de permisos ya no vale.
             await invalidateUsersPermissions([data.id])
             notifyUserReload(data.id)
         }
@@ -183,7 +204,9 @@ export const UsersApi = new Elysia()
             cargo: t.Optional(t.String()),
             enable: t.Optional(t.Any()),
             status: t.Optional(t.Any()),
-            rol_sistema: t.Optional(t.Any())
+            rol_sistema: t.Optional(t.Any()),
+            // Ids de permiso concedidos al usuario además de los de sus roles.
+            permisos_directos: t.Optional(t.Any())
         })
     })
     .get(`${path}/:id`, async ({ params: { id }, set, user }) => {
@@ -203,16 +226,18 @@ export const UsersApi = new Elysia()
             set.status = 400;
             return { message: 'Se requiere el campo "foto"' };
         }
-        if (!FOTO_ALLOWED_MIME.includes(foto.type)) {
-            set.status = 400;
-            return { message: 'Solo se permiten imágenes JPEG, PNG o WebP' };
-        }
         if (foto.size > FOTO_MAX_BYTES) {
             set.status = 400;
             return { message: 'La foto no puede superar los 5 MB' };
         }
-        const { file: s3Key, filePath } = buildKeyObject(configServer.s3.paths.userAvatars, foto.name || 'foto.jpg');
-        const uploaded = await uploadToS3Private(filePath, foto);
+        // Del tipo real salen la extensión de la clave y el Content-Type.
+        const tipo = await detectarTipoImagen(foto);
+        if (!tipo || !FOTO_ALLOWED_MIME.includes(tipo)) {
+            set.status = 400;
+            return { message: 'Solo se permiten imágenes JPEG, PNG o WebP' };
+        }
+        const { file: s3Key, filePath } = buildKeyObject(configServer.s3.paths.userAvatars, `foto.${FOTO_EXTENSION[tipo]}`);
+        const uploaded = await uploadToS3Private(filePath, foto, tipo);
         if (!uploaded) {
             set.status = 500;
             return { message: 'No se pudo guardar la foto en el storage' };
@@ -270,7 +295,7 @@ export const UsersApi = new Elysia()
     })
     .put(`${path}/change-password`, async ({ body, set, headers, user }) => {
         const { id, password } = body as any;
-        const password_hash = hashSync(password);
+        const password_hash = await Bun.password.hash(password);
         const result = await execProcedure('core.update_user_password', [{
             id,
             password_hash,
@@ -289,5 +314,9 @@ export const UsersApi = new Elysia()
         notifyUserClose(id)
         return result.result;
     }, {
-        requirePermission: PERMISSIONS.USUARIOS.EDIT
+        requirePermission: PERMISSIONS.USUARIOS.EDIT,
+        body: t.Object({
+            id: t.Numeric(),
+            password: t.String({ minLength: 8, maxLength: 128 }),
+        })
     });

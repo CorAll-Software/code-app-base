@@ -1,8 +1,9 @@
 import { Modal, Form, Tabs, Flex, message, theme, Steps, Space, Grid, Drawer, Button, Divider, Select, Typography, Col, Row } from 'antd';
-import { UserOutlined, SettingOutlined, CheckOutlined, ArrowRightOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { UserOutlined, SettingOutlined, CheckOutlined, ArrowRightOutlined, SafetyCertificateOutlined, KeyOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { type UserData, usersService } from '../services/users.service';
-import type { Role } from '@src/core/types';
+import type { Permission, Role } from '../../configuracion/services/roles.service';
+import { PermissionsTree } from '../../configuracion/components/PermissionsTree';
 import { capitalizeWords } from '@src/core/parse';
 
 import { PersonalDataSection } from './user-form/PersonalDataSection';
@@ -35,6 +36,8 @@ interface UserFormModalProps {
     open: boolean;
     user: UserData | null;
     roles: Role[];
+    /** Catálogo de permisos, para los permisos específicos del usuario. */
+    permissions: Permission[];
     allUsers: UserData[];
     loading: boolean;
     onCancel: () => void;
@@ -43,7 +46,7 @@ interface UserFormModalProps {
 }
 
 export const UserFormModal = ({
-    open, user, roles, allUsers, loading, onCancel, onSave, onFotoChange
+    open, user, roles, permissions, allUsers, loading, onCancel, onSave, onFotoChange
 }: UserFormModalProps) => {
     const { token } = theme.useToken();
     const screens = Grid.useBreakpoint();
@@ -55,6 +58,15 @@ export const UserFormModal = ({
     const [isAnimating, setIsAnimating] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
     const [localFotoUrl, setLocalFotoUrl] = useState<string | null>(null);
+
+    // Permisos que el usuario ya recibe por los roles elegidos: en el árbol de
+    // permisos específicos salen marcados y bloqueados.
+    const rolesElegidos: number[] | undefined = Form.useWatch('rol_sistema', { form, preserve: true });
+    const permisosPorRol = useMemo(() => {
+        const elegidos = new Set(rolesElegidos || []);
+        const ids = roles.filter(r => elegidos.has(r.id)).flatMap(r => r.permissions || []);
+        return [...new Set(ids)].map(String);
+    }, [roles, rolesElegidos]);
 
     const handleFotoUpload = useCallback(async (file: File): Promise<string | null> => {
         if (!user?.id) return null;
@@ -122,6 +134,9 @@ export const UserFormModal = ({
                 initialValues.rol_sistema = [...new Set(initialValues.rol_sistema)];
             }
 
+            // El árbol trabaja con las claves como texto.
+            initialValues.permisos_directos = (user.permisos_directos || []).map(String);
+
             form.setFieldsValue(initialValues);
         } else {
             form.setFieldsValue({
@@ -145,6 +160,11 @@ export const UserFormModal = ({
 
                 processedValues.telefono = processedValues.phone || processedValues.telefono;
                 processedValues.phone = processedValues.telefono;
+
+                // Solo viene si se abrió la pestaña; si no, no se toca.
+                if (Array.isArray(values.permisos_directos)) {
+                    processedValues.permisos_directos = values.permisos_directos.map(Number);
+                }
 
                 onSave(processedValues);
             })
@@ -250,20 +270,48 @@ export const UserFormModal = ({
             label: <Space><SettingOutlined />Credenciales</Space>,
             children: <CredentialsSection form={form} isEdit={true} allUsers={allUsers} userId={user.id} isSuperAdmin={user?.id === 1} />,
         }] : []),
+        {
+            key: 'permisos',
+            label: <Space><KeyOutlined />Permisos específicos</Space>,
+            children: user?.is_system_user ? (
+                <Text type="secondary">
+                    Este usuario tiene un rol de sistema: ya cuenta con todos los permisos.
+                </Text>
+            ) : (
+                <Flex vertical gap="small" style={{ paddingTop: token.paddingXS }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                        Accesos que se conceden solo a este usuario y se suman a los de sus roles.
+                        Los que ya recibe por rol aparecen marcados y no se pueden quitar desde aquí.
+                    </Text>
+                    <Form.Item name="permisos_directos" noStyle>
+                        <PermissionsTree
+                            permissions={permissions}
+                            lockedKeys={permisosPorRol}
+                            lockedLabel="Por rol"
+                            height={320}
+                        />
+                    </Form.Item>
+                </Flex>
+            ),
+        },
     ];
 
     const handleModalOk = () => {
         if (user) { handleSave(); return; }
-        if (activeTab === 'datos' && currentStep === 0) {
+        if (currentStep === 0) {
+            // En un alta, desde cualquier pestaña: primero faltan las credenciales.
             form.validateFields(['first_name', 'last_name', 'dni', 'phone', 'enable'])
-                .then(() => setCurrentStep(1))
-                .catch(() => message.error('Por favor completa los campos obligatorios para continuar'));
+                .then(() => { setCurrentStep(1); setActiveTab('datos'); })
+                .catch(() => {
+                    setActiveTab('datos');
+                    message.error('Por favor completa los campos obligatorios para continuar');
+                });
         } else {
             handleSave();
         }
     };
 
-    const isLastStep = user || activeTab !== 'datos' || currentStep === 1;
+    const isLastStep = user || currentStep === 1;
     const okText = isLastStep ? 'Guardar' : 'Continuar';
 
     const formContent = (

@@ -1,4 +1,5 @@
--- Permisos efectivos de un usuario, como array JSON de slugs.
+-- Permisos efectivos de un usuario, como array JSON de slugs: los de sus roles
+-- más los concedidos a él directamente (core.user_permissions).
 -- Definición ÚNICA de "qué puede hacer el usuario X": la reusan
 -- core.get_user_login_data (para el payload de sesión) y el backend cuando
 -- necesita recargar la caché de Redis (ver backend/src/core/permissions.ts).
@@ -24,6 +25,7 @@ BEGIN
         JOIN core.roles r ON r.id = ur.role_id
         WHERE ur.user_id = _user_id
           AND r.is_system = TRUE
+          AND r.status = TRUE
           AND ur.status = TRUE
     ) INTO _is_root;
 
@@ -45,6 +47,13 @@ BEGIN
                   AND r.status   = TRUE
                   AND r.enable   = TRUE
                   AND rp.status  = TRUE
+            )
+            OR
+            p.id IN (
+                SELECT up.permission_id
+                FROM core.user_permissions up
+                WHERE up.user_id = _user_id
+                  AND up.status  = TRUE
             )
           )
     ) sq;

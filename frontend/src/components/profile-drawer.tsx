@@ -103,11 +103,17 @@ const DrawerHeader = () => {
 const PersonalDataTab = ({ auth, form, notificationApi }: { auth: any; form: any; notificationApi: any }) => {
     const [loading, setLoading] = useState(false);
 
-    const handleFinish = async (values: any) => {
+    // Cambiar el correo exige la contraseña actual (el backend la pide).
+    const emailActual = Form.useWatch('email', form);
+    const cambiaCorreo = (emailActual ?? '').trim().toLowerCase() !== (auth.user?.email ?? '').trim().toLowerCase();
+
+    const handleFinish = async ({ currentPassword, ...values }: any) => {
         setLoading(true);
         try {
-            const res = await authService.updateProfile({ id: auth.user.id, ...values }, { hideNotification: true });
+            const params = { id: auth.user.id, ...values, ...(cambiaCorreo ? { currentPassword } : {}) };
+            const res = await authService.updateProfile(params, { hideNotification: true });
             if (res) {
+                form.setFieldValue('currentPassword', undefined);
                 const names = `${values.first_name} ${values.last_name}`.trim();
                 auth.login({ ...auth.user, ...values, names }, auth.expiredIn);
                 window.messageApi?.success('Perfil actualizado correctamente');
@@ -127,7 +133,13 @@ const PersonalDataTab = ({ auth, form, notificationApi }: { auth: any; form: any
                 return;
             }
 
-            // 2. Caso: Correo ya registrado por otro usuario
+            // 2. Caso: falta la contraseña actual o es incorrecta
+            if (errorMsg.toLowerCase().includes('contraseña')) {
+                window.messageApi?.error(errorMsg);
+                return;
+            }
+
+            // 3. Caso: Correo ya registrado por otro usuario
             const isEmailError =
                 errorMsg.toLowerCase().includes('email') ||
                 errorMsg.toLowerCase().includes('correo') ||
@@ -222,6 +234,22 @@ const PersonalDataTab = ({ auth, form, notificationApi }: { auth: any; form: any
                 />
             </Form.Item>
 
+            {cambiaCorreo && (
+                <Form.Item
+                    name="currentPassword"
+                    label="Contraseña actual"
+                    extra="Para cambiar el correo electrónico, confirma tu contraseña."
+                    rules={[{ required: true, message: 'Ingresa tu contraseña actual' }]}
+                >
+                    <Input.Password
+                        prefix={<LockOutlined style={{ color: BRAND.primary }} />}
+                        placeholder="Tu contraseña actual"
+                        size="large"
+                        autoComplete="current-password"
+                    />
+                </Form.Item>
+            )}
+
             <Form.Item
                 name="telefono"
                 label="Teléfono"
@@ -297,7 +325,8 @@ const ChangePasswordTab = ({ form }: { form: any }) => {
                 hasFeedback
                 rules={[
                     { required: true, message: 'Ingrese la nueva contraseña' },
-                    { min: 6, message: 'Mínimo 6 caracteres' },
+                    { min: 8, message: 'Mínimo 8 caracteres' },
+                    { max: 128, message: 'Máximo 128 caracteres' },
                     {
                         pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%&*])/,
                         message: "Debe incluir mayúscula, minúscula, número y carácter especial (!@#$%&*)"

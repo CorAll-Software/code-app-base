@@ -23,6 +23,9 @@ BEGIN
         -- Roles
         'rol_sistema', (SELECT COALESCE(json_agg(DISTINCT role_id), '[]'::json)
                         FROM core.user_roles WHERE user_id = u.id AND status = TRUE),
+        -- Permisos concedidos directamente (aparte de los de sus roles)
+        'permisos_directos', (SELECT COALESCE(json_agg(permission_id ORDER BY permission_id), '[]'::json)
+                              FROM core.user_permissions WHERE user_id = u.id AND status = TRUE),
         'is_system_user', (SELECT EXISTS (
             SELECT 1 FROM core.user_roles ur
             JOIN core.roles r ON ur.role_id = r.id

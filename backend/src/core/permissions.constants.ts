@@ -26,7 +26,3 @@ export const PERMISSIONS = {
         VIEW: 'auditoria.view',
     },
 } as const;
-
-export const SYSTEM_ROLES = {
-    ADMIN: 'Administrador',
-} as const;

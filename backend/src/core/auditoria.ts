@@ -1,3 +1,4 @@
+import { configServer } from '@/config';
 import { execProcedure } from './db/connection';
 
 /*
@@ -28,14 +29,29 @@ export type OperacionAuditoria =
     | 'ACCESO_DENEGADO';
 
 /**
+ * Ip del cliente según X-Forwarded-For, contando `TRUSTED_PROXY_HOPS` desde la
+ * derecha: cada proxy agrega ahí a quien le habló, y lo de más a la izquierda
+ * lo puede escribir el cliente. Sin proxies o sin la cabecera devuelve null.
+ *
+ * Con Cloudflare → Traefik (2 saltos) la cadena llega `cliente, ip_cloudflare`.
+ * Sin Cloudflare llega solo `cliente` y, al haber menos entradas que saltos, se
+ * toma la primera: la escribió Traefik, que descarta la que manda el cliente.
+ */
+export const ipCliente = (headers: any): string | null => {
+    const saltos = configServer.trustedProxyHops;
+    if (saltos <= 0) return null;
+
+    const cadena = (headers?.['x-forwarded-for'] || '').toString()
+        .split(',').map((p: string) => p.trim()).filter(Boolean);
+    return cadena[Math.max(0, cadena.length - saltos)] ?? null;
+};
+
+/**
  * Ip y user agent de la petición. La base nunca los conoce por su cuenta: son
  * datos de HTTP que solo existen si la ruta se los pasa.
- *
- * `x-forwarded-for` puede traer una cadena de proxies (`cliente, proxy1,
- * proxy2`): interesa el primero, que es el cliente real.
  */
 export const trazas = (headers: any) => ({
-    ip: (headers?.['x-forwarded-for'] || headers?.['x-real-ip'] || '').toString().split(',')[0].trim() || null,
+    ip: ipCliente(headers),
     user_agent: (headers?.['user-agent'] || '').toString() || null,
 });
 

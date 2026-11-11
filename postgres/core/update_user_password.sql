@@ -24,6 +24,9 @@ BEGIN
         RETURN json_build_object('error', 'ID y password_hash son requeridos');
     END IF;
 
+    -- Solo otro usuario de sistema puede cambiarle la contraseña a uno de sistema.
+    PERFORM core.proteger_usuario_sistema(v_user_cr, v_id);
+
     UPDATE core.users
     SET password_hash = v_password_hash,
         user_up = COALESCE(v_user_cr, v_id),

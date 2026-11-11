@@ -4,11 +4,16 @@ LANGUAGE plpgsql
 AS $function$
 DECLARE
 	result1 json;
+	_id integer;
 	_email varchar(150);
 BEGIN
-	_email := trim(req ->> 'email');
+	-- Con `id` (rutas con sesión) por id; si no, por correo sin distinguir
+	-- mayúsculas (login): se guarda normalizado y ux_users_email_activo
+	-- garantiza una sola cuenta activa.
+	_id := NULLIF(req ->> 'id', '')::integer;
+	_email := lower(trim(req ->> 'email'));
 
-	IF _email IS NULL OR _email = '' THEN
+	IF _id IS NULL AND (_email IS NULL OR _email = '') THEN
 		RAISE EXCEPTION 'El correo electrónico es requerido';
 	END IF;
 
@@ -21,8 +26,8 @@ BEGIN
 		)
 	INTO result1
 	FROM core.users u
-	WHERE lower(u.email) = lower(_email)
-	  AND u.status = true
+	WHERE u.status = true
+	  AND CASE WHEN _id IS NOT NULL THEN u.id = _id ELSE u.email = _email END
 	LIMIT 1;
 
 	RETURN result1;

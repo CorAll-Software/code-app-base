@@ -160,7 +160,7 @@ function App() {
                   const nextPerms = new Set(json.user.permisos || []);
                   const checkSlug = (slug: any) => {
                     if (!slug) return true;
-                    if (json.user.roles?.some((r: any) => r.name === 'Administrador' || r.id === 1)) return true;
+                    if (json.user.roles?.some((r: any) => r.is_system === true)) return true;
                     const slugs = Array.isArray(slug) ? slug : [slug];
                     return slugs.some(s => nextPerms.has(s));
                   };

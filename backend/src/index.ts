@@ -18,8 +18,9 @@ try {
 
 const app = new Elysia()
   // .mapResponse(compressResponse)
+  // Solo los orígenes configurados (ver `cors` en config.ts).
   .use(cors({
-    origin: true,
+    origin: configServer.cors.origins,
     credentials: true,
   }))
   /*

@@ -162,12 +162,15 @@ export class UserStore {
         });
     }
 
-    /** `true` solo si Redis confirma la sesión; `false` obliga a verificar en BD. */
-    async isSessionCached(sessionId: string): Promise<boolean> {
+    /**
+     * Dueño de la sesión según Redis, o `null` si no está en caché (y entonces
+     * hay que verificar en BD).
+     */
+    async getSessionUser(sessionId: string): Promise<string | null> {
         const result = await this.exec(async (c) => {
-            return await c.exists(`session:${sessionId}`);
+            return await c.get(`session:${sessionId}`);
         });
-        return !!result;
+        return result ?? null;
     }
 
     async removeSession(sessionId: string, userId?: number | string) {
@@ -197,6 +200,32 @@ export class UserStore {
             return await c.smembers(`user:${userId}:sessions`);
         });
         return result || [];
+    }
+
+    // ── Contadores con ventana ───────────────────────────────────────────────
+
+    /**
+     * Suma uno al contador `key` y devuelve el total dentro de la ventana, que
+     * empieza con el primer incremento. `null` si Redis no responde: el
+     * llamador decide, y no se le corta el paso a nadie por una caída.
+     */
+    async incrementInWindow(key: string, windowSeconds: number): Promise<number | null> {
+        return this.exec(async (c) => {
+            const total = await c.incr(key);
+            if (total === 1) await c.expire(key, windowSeconds);
+            return total;
+        });
+    }
+
+    /** Fallos con la contraseña actual (ver verificarContrasenaActual en auth.api.ts). */
+    async addPasswordFailure(userId: number | string, windowSeconds: number): Promise<number | null> {
+        return this.incrementInWindow(`user:${userId}:password_failures`, windowSeconds);
+    }
+
+    async clearPasswordFailures(userId: number | string) {
+        await this.exec(async (c) => {
+            await c.del(`user:${userId}:password_failures`);
+        });
     }
 
     async testConnection(): Promise<void> {

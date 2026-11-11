@@ -37,6 +37,8 @@ RUN bun run build
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
 FROM base AS release
+# Lo que lee process.env al arrancar (p. ej. el entorno de Sentry) lo necesita.
+ENV NODE_ENV=production
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /usr/src/app/build ./build
 COPY --from=prerelease /usr/src/app/assets ./assets

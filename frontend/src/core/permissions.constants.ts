@@ -27,10 +27,6 @@ export const PERMISSIONS = {
     },
 } as const;
 
-export const SYSTEM_ROLES = {
-    ADMIN: 'Administrador',
-} as const;
-
 /**
  * Tipado dinámico para permisos basados en el objeto PERMISSIONS.
  * No editar manualmente la unión de strings.

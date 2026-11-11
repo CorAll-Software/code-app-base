@@ -10,6 +10,7 @@ import {
     rotateSession,
 } from '@core/session';
 import { cacheUserPermissions } from '@core/permissions';
+import { userStore } from '@core/store';
 import { contextoAuditoria, registrarEvento, trazas } from '@core/auditoria';
 import { emailService } from '@core/email/email-service';
 import { getS3ObjectUrl } from '@core/s3';
@@ -29,7 +30,8 @@ const signUserAvatar = async (user: any) => {
 
 const cookieBase = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    // Se decide al arrancar, no al construir (ver configServer.auth.cookieSecure).
+    secure: configServer.auth.cookieSecure,
     sameSite: 'lax' as const,
     path: '/',
 };
@@ -59,9 +61,85 @@ const buildAccessToken = (user: any, sessionId: string) => generateAccessToken({
     email: user.email,
     names: user.names,
     telefono: user.telefono,
-    roles: user.roles, // Se agregan los roles para el bypass de isAdmin
+    roles: user.roles, // Informativo (UI y bitácora); la autorización no lo usa
     sid: sessionId,
 });
+
+// ── Límites ─────────────────────────────────────────────────────────────────
+
+/** Largo máximo de una contraseña: hashear textos enormes solo gasta CPU. */
+const PASSWORD_MAX = 128;
+/** Fallos con la contraseña actual antes de cerrar la sesión, por ventana. */
+const MAX_FALLOS_CONTRASENA = 5;
+const VENTANA_FALLOS_CONTRASENA = 15 * 60;
+/** Correos de recuperación por dirección, por ventana (lo que dura un código). */
+const ENVIOS_RECUPERACION_MAX = 3;
+const VENTANA_RECUPERACION = 15 * 60;
+
+/**
+ * Hash de una contraseña que nadie conoce, para comparar cuando el correo no
+ * existe: así el login tarda lo mismo con o sin cuenta.
+ */
+let hashSenuelo: Promise<string> | null = null;
+const getHashSenuelo = () => {
+    hashSenuelo ??= Bun.password.hash(crypto.randomUUID());
+    return hashSenuelo;
+};
+
+/**
+ * Comprueba la contraseña actual en las rutas con sesión que la piden
+ * (cambiar contraseña o correo). Devuelve `null` si es correcta, o el error a
+ * responder. Cada fallo va a la bitácora y, al llegar al máximo, se cierra la
+ * sesión: con un token robado no se puede probar contraseñas sin límite.
+ * El hash se busca por id, no por el correo del token, que puede haber cambiado.
+ */
+const verificarContrasenaActual = async (
+    user: any,
+    password: string,
+    headers: any,
+    endpoint: string,
+): Promise<{ code: 400 | 401; message: string } | null> => {
+    const credentialsResult = await execProcedure('core.get_user_credentials', [{ id: user.id }]);
+    const hash = credentialsResult.result?.password_hash;
+    if (credentialsResult.error || !hash) {
+        return { code: 400, message: 'No se pudo verificar la identidad del usuario' };
+    }
+
+    if (await Bun.password.verify(password, String(hash))) {
+        await userStore.clearPasswordFailures(user.id);
+        return null;
+    }
+
+    // `null` = Redis no respondió: el intento se registra pero no se corta.
+    const fallos = await userStore.addPasswordFailure(user.id, VENTANA_FALLOS_CONTRASENA);
+    await registrarEvento({
+        entidad: 'users',
+        operacion: 'LOGIN_FALLIDO',
+        usuarioId: user.id,
+        idRegistro: user.id,
+        sesionId: user.sid,
+        detalle: `Contraseña actual incorrecta (${fallos ?? '?'} de ${MAX_FALLOS_CONTRASENA})`,
+        headers,
+        endpoint,
+    });
+
+    if (fallos !== null && fallos >= MAX_FALLOS_CONTRASENA) {
+        await revokeSession(user.sid, user.id, {
+            reason: 'PASSWORD_ATTEMPTS',
+            actorUserId: user.id,
+            actorSessionId: user.sid,
+        });
+        notifySessionClose(user.sid);
+        return {
+            code: 401,
+            message: 'Demasiados intentos con una contraseña incorrecta. Se cerró la sesión: vuelve a iniciarla.',
+        };
+    }
+
+    // 400 y no 401: el frontend toma todo 401 por token vencido, renueva,
+    // reintenta (otro fallo contado) y cierra la sesión.
+    return { code: 400, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
+};
 
 const path = '/auth'
 
@@ -92,23 +170,28 @@ export const AuthApi = new Elysia()
             endpoint: `POST ${path}/login`,
         })
 
+        // Siempre se verifica un hash (el señuelo si no hay cuenta) y la
+        // contraseña va antes que el estado: ni el tiempo ni el 403 revelan
+        // qué cuentas existen.
         const credentials = credentialsResult.result
-        if (!credentials?.id || !credentials?.password_hash) {
+        const existe = !!(credentials?.id && credentials?.password_hash)
+        const hash = existe ? String(credentials.password_hash) : await getHashSenuelo()
+        const isPasswordValid = await Bun.password.verify(password, hash)
+
+        if (!existe) {
             await loginFallido('No existe una cuenta activa con ese correo')
             return status(401, { message: 'Credenciales inválidas' })
         }
 
-        if (credentials.enable === false) {
-            await loginFallido('Cuenta inactiva', credentials.id)
-            return status(403, { message: 'Cuenta inactiva. Contacte al administrador.' })
-        }
-
-        const storedPassword = String(credentials.password_hash)
-        const isPasswordValid = Bun.password.verifySync(password, storedPassword)
-
         if (!isPasswordValid) {
             await loginFallido('Contraseña incorrecta', credentials.id)
             return status(401, { message: 'Credenciales inválidas' })
+        }
+
+        // Solo quien sabe la contraseña llega a enterarse de que está inactiva.
+        if (credentials.enable === false) {
+            await loginFallido('Cuenta inactiva', credentials.id)
+            return status(403, { message: 'Cuenta inactiva. Contacte al administrador.' })
         }
 
         const userResult = await execProcedure('core.get_user_login_data', [{ id: credentials.id, touch_login: true }])
@@ -146,8 +229,8 @@ export const AuthApi = new Elysia()
     }, {
         requireCaptcha: true,
         body: t.Object({
-            email: t.String(),
-            password: t.String(),
+            email: t.String({ maxLength: 150 }),
+            password: t.String({ maxLength: PASSWORD_MAX }),
             ...captchaBodyField
         })
     })
@@ -156,6 +239,14 @@ export const AuthApi = new Elysia()
      * cuando venció): la credencial es el refresh token, que se rota en cada uso.
      */
     .post(`${path}/refresh`, async ({ body, cookie, headers, status }) => {
+        // La cookie viaja también desde dominios hermanos (SameSite=Lax): CORS
+        // no deja leer la respuesta, pero la sesión se rotaría igual. Un
+        // navegador siempre manda `Origin` en un POST; otros clientes, no.
+        const origin = headers?.origin
+        if (origin && !configServer.cors.isAllowed(origin)) {
+            return status(403, { message: 'Origen no permitido' })
+        }
+
         const refreshToken = extractRefreshToken(body, cookie)
         if (!refreshToken) {
             return status(401, { message: 'No se ha enviado el refresh token' })
@@ -173,7 +264,7 @@ export const AuthApi = new Elysia()
 
         const userResult = await execProcedure('core.get_user_login_data', [{ id: rotated.userId }])
         if (userResult.error) {
-            // El usuario ya no puede operar (inactivo, sin roles): cerrar la sesión.
+            // El usuario ya no puede operar (inactivo, sin roles ni permisos): cerrar la sesión.
             await revokeSession(rotated.sessionId, rotated.userId, { reason: 'ADMIN' })
             clearSessionCookies(cookie)
             return status(401, { message: userResult.error })
@@ -253,7 +344,7 @@ export const AuthApi = new Elysia()
             requirePermission: null
         })
         .put(`/update-profile`, async ({ body, headers, set, user }) => {
-            // Retrieve existing user data to avoid overwriting missing fields with NULL
+            // Solo para comparar el correo y para el aviso; no se reenvían.
             const existingResult = await execProcedure('core.get_user_by_id', [{ id: (user as any).id }]);
             if (existingResult.error || !existingResult.result) {
                 set.status = 400;
@@ -261,26 +352,44 @@ export const AuthApi = new Elysia()
             }
 
             const existingUser = existingResult.result as any;
-            const data = { ...existingUser, ...(body as any) };
-            data.id = (user as any).id; // Force updating own profile
-            Object.assign(data, contextoAuditoria(user, headers, `PUT ${path}/update-profile`));
 
-            // Synchronize first_name/last_name/names
-            const bodyAny = body as any;
-            if (bodyAny.names && !bodyAny.first_name) {
-                const parts = bodyAny.names.trim().split(/\s+/);
-                data.first_name = parts[0] || '';
-                data.last_name = parts.slice(1).join(' ') || '';
-                data.names = bodyAny.names;
-            } else if (!bodyAny.names && (bodyAny.first_name || bodyAny.last_name)) {
-                data.first_name = bodyAny.first_name ?? data.first_name;
-                data.last_name = bodyAny.last_name ?? data.last_name;
-                data.names = `${data.first_name || ''} ${data.last_name || ''}`.trim();
+            // El correo decide a dónde llegan los códigos de recuperación:
+            // cambiarlo exige la contraseña actual.
+            const { currentPassword, ...cambios } = body as any;
+            const normalizarCorreo = (correo: unknown) => String(correo ?? '').trim().toLowerCase();
+            const cambiaCorreo = cambios.email !== undefined
+                && normalizarCorreo(cambios.email) !== normalizarCorreo(existingUser.email);
+
+            if (cambiaCorreo) {
+                if (!currentPassword) {
+                    set.status = 400;
+                    return { message: 'Confirma tu contraseña actual para cambiar el correo electrónico.' };
+                }
+                const fallo = await verificarContrasenaActual(user, currentPassword, headers, `PUT ${path}/update-profile`);
+                if (fallo) {
+                    set.status = fallo.code;
+                    return { message: fallo.message };
+                }
             }
 
-            // Ensure phone and telefono are synchronized
-            data.telefono = (body as any).phone || (body as any).telefono || data.telefono;
-            data.phone = data.telefono;
+            // Solo los campos de autoservicio: save_user conserva lo que no
+            // viene, y así nunca se reescriben enable, status ni roles.
+            const data: Record<string, unknown> = {
+                id: (user as any).id, // siempre el propio perfil
+                email: cambios.email,
+                phone: cambios.phone || cambios.telefono || undefined,
+                dni: cambios.dni,
+                ...contextoAuditoria(user, headers, `PUT ${path}/update-profile`),
+            };
+
+            if (cambios.first_name !== undefined || cambios.last_name !== undefined) {
+                data.first_name = cambios.first_name;
+                data.last_name = cambios.last_name;
+            } else if (cambios.names) {
+                const parts = String(cambios.names).trim().split(/\s+/);
+                data.first_name = parts[0] || '';
+                data.last_name = parts.slice(1).join(' ') || '';
+            }
 
             const result = await execProcedure('core.save_user', [data]);
             if (result.error) {
@@ -288,11 +397,21 @@ export const AuthApi = new Elysia()
                 return { message: result.error };
             }
 
+            // Aviso a la dirección anterior, sin bloquear la respuesta.
+            if (cambiaCorreo) {
+                emailService.sendEmailChangedNotice({
+                    email: existingUser.email,
+                    names: existingUser.names,
+                    newEmail: result.result?.email ?? cambios.email,
+                });
+            }
 
             return result.result;
         }, {
             requirePermission: null,
             body: t.Object({
+                // Obligatoria solo cuando cambia el correo.
+                currentPassword: t.Optional(t.String({ maxLength: PASSWORD_MAX })),
                 names: t.Optional(t.String()),
                 first_name: t.Optional(t.String()),
                 last_name: t.Optional(t.String()),
@@ -306,23 +425,15 @@ export const AuthApi = new Elysia()
         .put(`/update-password`, async ({ body, headers, set, user }) => {
             const { currentPassword, newPassword } = body as { currentPassword: string, newPassword: string };
 
-            // 1. Validar la contraseña actual
-            const credentialsResult = await execProcedure('core.get_user_credentials', [{ email: (user as any).email }])
-            if (credentialsResult.error || !credentialsResult.result) {
-                set.status = 400
-                return { message: 'No se pudo verificar la identidad del usuario' }
-            }
-
-            const credentials = credentialsResult.result
-            const isPasswordValid = Bun.password.verifySync(currentPassword, String(credentials.password_hash))
-
-            if (!isPasswordValid) {
-                set.status = 401
-                return { message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' }
+            // 1. Validar la contraseña actual (con límite de intentos)
+            const fallo = await verificarContrasenaActual(user, currentPassword, headers, `PUT ${path}/update-password`);
+            if (fallo) {
+                set.status = fallo.code;
+                return { message: fallo.message };
             }
 
             // 2. Hashear y actualizar la nueva contraseña
-            const password_hash = Bun.password.hashSync(newPassword);
+            const password_hash = await Bun.password.hash(newPassword);
 
             const result = await execProcedure('core.update_user_password', [{
                 id: (user as any).id,
@@ -349,8 +460,8 @@ export const AuthApi = new Elysia()
         }, {
             requirePermission: null,
             body: t.Object({
-                currentPassword: t.String(),
-                newPassword: t.String({ minLength: 8 })
+                currentPassword: t.String({ maxLength: PASSWORD_MAX }),
+                newPassword: t.String({ minLength: 8, maxLength: PASSWORD_MAX })
             })
         })
         /** Sesiones activas del usuario; `current: true` marca la de este token. */
@@ -397,30 +508,40 @@ export const AuthApi = new Elysia()
         })
     )
 
+    /**
+     * Pide un código de recuperación. Responde siempre lo mismo y sin esperar
+     * al SMTP, para no revelar qué correos tienen cuenta. Limitado a
+     * ENVIOS_RECUPERACION_MAX por correo y ventana.
+     */
     .post(`${path}/forgot-password`, async ({ body, status }) => {
         const { email } = body as { email: string };
-        const result = await execProcedure('core.request_password_recovery', [{ email }]);
+        const respuesta = { message: 'Si el correo pertenece a una cuenta activa, te enviamos un código de recuperación.' };
 
+        const correo = String(email).trim().toLowerCase();
+        const envios = await userStore.incrementInWindow(`recovery:${correo}`, VENTANA_RECUPERACION);
+        if (envios !== null && envios > ENVIOS_RECUPERACION_MAX) {
+            return respuesta;
+        }
+
+        const result = await execProcedure('core.request_password_recovery', [{ email }]);
         if (result.error) {
             return status(500, { message: 'No se pudo procesar la solicitud en este momento. Por favor, intenta más tarde.' });
         }
 
+        // Sin cuenta activa: misma respuesta, sin correo.
         if (result.result?.error) {
-            return status(400, { message: result.result.error });
+            return respuesta;
         }
 
+        // Sin await (sendRecoveryCode nunca lanza; los fallos quedan en el log).
         const { recovery_code, names } = result.result;
-        const sent = await emailService.sendRecoveryCode({ email, code: recovery_code, names, domain: configServer.domain });
+        void emailService.sendRecoveryCode({ email, code: recovery_code, names, domain: configServer.domain });
 
-        if (!sent) {
-            return status(500, { message: 'Error al enviar el código de recuperación por correo.' });
-        }
-
-        return { message: 'Código de recuperación enviado' };
+        return respuesta;
     }, {
         requireCaptcha: true,
         body: t.Object({
-            email: t.String(),
+            email: t.String({ maxLength: 150 }),
             ...captchaBodyField
         })
     })
@@ -446,7 +567,17 @@ export const AuthApi = new Elysia()
     })
     .post(`${path}/reset-password`, async ({ body, status, headers }) => {
         const { email, recovery_code, new_password } = body as any;
-        const password_hash = Bun.password.hashSync(new_password);
+
+        // El código antes que el hash, que es lo caro. Un fallo cuenta como intento.
+        const check = await execProcedure('core.validate_recovery_code', [{ email, recovery_code }]);
+        if (check.error) {
+            return status(500, { message: 'Error al restablecer la contraseña. Por favor, intenta más tarde.' });
+        }
+        if (check.result?.error) {
+            return status(400, { message: 'Sesión de recuperación inválida o expirada' });
+        }
+
+        const password_hash = await Bun.password.hash(new_password);
 
         const result = await execProcedure('core.reset_password_with_code', [{
             email,
@@ -467,9 +598,8 @@ export const AuthApi = new Elysia()
             return status(400, { message: result.result.error });
         }
 
-        const credentialsResult = await execProcedure('core.get_user_credentials', [{ email }]);
-        const userId = credentialsResult.result?.id;
-
+        // El dueño del código, no el que resulte de buscar por correo.
+        const userId = result.result?.user_id;
 
         if (userId) {
             // Restablecer contraseña cierra TODAS las sesiones: quien la pidió
@@ -485,7 +615,7 @@ export const AuthApi = new Elysia()
         body: t.Object({
             email: t.String(),
             recovery_code: t.String({ minLength: 6, maxLength: 6 }),
-            new_password: t.String({ minLength: 8 }),
+            new_password: t.String({ minLength: 8, maxLength: PASSWORD_MAX }),
             ...captchaBodyField
         })
     })

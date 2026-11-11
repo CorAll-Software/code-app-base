@@ -19,7 +19,8 @@ AS $function$
         _expires_at    BIGINT;
         _now           BIGINT := EXTRACT(EPOCH FROM NOW())::BIGINT;
     BEGIN
-        _email := NULLIF(TRIM(req->>'email'), '');
+        -- Normalizado como en save_user; validar/restablecer lo buscan igual.
+        _email := NULLIF(lower(TRIM(req->>'email')), '');
 
         -- Verificar que el email existe y el usuario está activo
         SELECT id, first_name, last_name
@@ -35,20 +36,36 @@ AS $function$
 
         _names := TRIM(CONCAT_WS(' ', _first_name, _last_name));
 
-        -- Generar código de 6 dígitos
-        _recovery_code := LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+        -- Con un código vigente se reenvía el mismo (con su vencimiento e
+        -- intentos): pedir otro no debe anular el que el dueño ya recibió.
+        SELECT recovery_code, expires_at
+          INTO _recovery_code, _expires_at
+        FROM core.password_recovery
+        WHERE user_id = _user_id
+          AND email = _email
+          AND used = FALSE
+          AND expires_at > _now
+        ORDER BY created_at DESC
+        LIMIT 1;
 
-        -- El código expira en 15 minutos (900 segundos)
-        _expires_at := _now + 900;
+        IF _recovery_code IS NULL THEN
+            -- Código de 6 dígitos del generador seguro (RANDOM() es predecible):
+            -- los 8 primeros hex de un UUID v4 son aleatorios.
+            _recovery_code := LPAD(
+                (('x' || SUBSTR(gen_random_uuid()::TEXT, 1, 8))::BIT(32)::BIGINT % 1000000)::TEXT,
+                6, '0');
 
-        -- Desactivar códigos anteriores de este usuario
-        UPDATE core.password_recovery
-        SET used = TRUE
-        WHERE user_id = _user_id AND used = FALSE;
+            -- El código expira en 15 minutos (900 segundos)
+            _expires_at := _now + 900;
 
-        -- Insertar nuevo código de recuperación
-        INSERT INTO core.password_recovery (user_id, recovery_code, email, expires_at, created_at)
-        VALUES (_user_id, _recovery_code, _email, _expires_at, _now);
+            -- Los anteriores (vencidos o de otra dirección) ya no sirven.
+            UPDATE core.password_recovery
+            SET used = TRUE
+            WHERE user_id = _user_id AND used = FALSE;
+
+            INSERT INTO core.password_recovery (user_id, recovery_code, email, expires_at, created_at)
+            VALUES (_user_id, _recovery_code, _email, _expires_at, _now);
+        END IF;
 
         RETURN json_build_object(
             'success', TRUE,
@@ -61,7 +78,50 @@ AS $function$
 $function$;
 
 
--- 2. Función para validar código de recuperación
+-- 2. Comprobación común del código, con límite de intentos.
+--
+-- Cada fallo suma un intento al código vigente del correo y, al llegar al
+-- máximo, lo anula. Devuelve el id del código si es correcto, o NULL. El FOR
+-- UPDATE serializa intentos simultáneos; no lanza excepción para que el
+-- intento sumado persista.
+DROP FUNCTION IF EXISTS core.check_recovery_code(VARCHAR, VARCHAR);
+CREATE OR REPLACE FUNCTION core.check_recovery_code(_email VARCHAR, _recovery_code VARCHAR)
+ RETURNS INTEGER
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+        _max_intentos CONSTANT INTEGER := 5;
+        _recovery_id  INTEGER;
+        _vigente      VARCHAR(6);
+        _now          BIGINT := EXTRACT(EPOCH FROM NOW())::BIGINT;
+    BEGIN
+        SELECT id, recovery_code INTO _recovery_id, _vigente
+        FROM core.password_recovery
+        WHERE email = _email
+          AND used = FALSE
+          AND expires_at > _now
+        ORDER BY created_at DESC
+        LIMIT 1
+        FOR UPDATE;
+
+        IF _recovery_id IS NULL THEN
+            RETURN NULL;
+        END IF;
+
+        IF _recovery_code IS NULL OR _vigente IS DISTINCT FROM _recovery_code THEN
+            UPDATE core.password_recovery
+            SET attempts = COALESCE(attempts, 0) + 1,
+                used     = (COALESCE(attempts, 0) + 1 >= _max_intentos)
+            WHERE id = _recovery_id;
+            RETURN NULL;
+        END IF;
+
+        RETURN _recovery_id;
+    END
+$function$;
+
+
+-- 3. Función para validar código de recuperación
 DROP FUNCTION IF EXISTS core.validate_recovery_code(json);
 CREATE OR REPLACE FUNCTION core.validate_recovery_code(req json)
  RETURNS json
@@ -71,19 +131,11 @@ AS $function$
         _email         VARCHAR(150);
         _recovery_code VARCHAR(6);
         _recovery_id   INTEGER;
-        _now           BIGINT := EXTRACT(EPOCH FROM NOW())::BIGINT;
     BEGIN
-        _email := NULLIF(TRIM(req->>'email'), '');
+        _email := NULLIF(lower(TRIM(req->>'email')), '');
         _recovery_code := NULLIF(TRIM(req->>'recovery_code'), '');
 
-        SELECT id INTO _recovery_id
-        FROM core.password_recovery
-        WHERE email = _email
-          AND recovery_code = _recovery_code
-          AND used = FALSE
-          AND expires_at > _now
-        ORDER BY created_at DESC
-        LIMIT 1;
+        _recovery_id := core.check_recovery_code(_email, _recovery_code);
 
         IF _recovery_id IS NULL THEN
             RETURN json_build_object('error', 'El código ingresado es inválido o ya ha expirado');
@@ -94,7 +146,7 @@ AS $function$
 $function$;
 
 
--- 3. Función para restablecer contraseña con código
+-- 4. Función para restablecer contraseña con código
 DROP FUNCTION IF EXISTS core.reset_password_with_code(json);
 CREATE OR REPLACE FUNCTION core.reset_password_with_code(req json)
  RETURNS json
@@ -113,19 +165,15 @@ AS $function$
         -- El autor se declara más abajo, al resolver el usuario.
         PERFORM auditoria.contexto(req);
 
-        _email         := NULLIF(TRIM(req->>'email'), '');
+        _email         := NULLIF(lower(TRIM(req->>'email')), '');
         _recovery_code := NULLIF(TRIM(req->>'recovery_code'), '');
         _password_hash := NULLIF(TRIM(req->>'password_hash'), '');
 
-        -- Validar nuevamente el código
-        SELECT id, user_id INTO _recovery_id, _user_id
+        -- Validar nuevamente el código (también cuenta como intento)
+        _recovery_id := core.check_recovery_code(_email, _recovery_code);
+        SELECT user_id INTO _user_id
         FROM core.password_recovery
-        WHERE email = _email
-          AND recovery_code = _recovery_code
-          AND used = FALSE
-          AND expires_at > _now
-        ORDER BY created_at DESC
-        LIMIT 1;
+        WHERE id = _recovery_id;
 
         IF _recovery_id IS NULL THEN
             RETURN json_build_object('error', 'Sesión de recuperación inválida o expirada');
@@ -149,6 +197,7 @@ AS $function$
             used_at = _now
         WHERE id = _recovery_id;
 
-        RETURN json_build_object('success', TRUE);
+        -- La ruta cierra las sesiones del dueño del código.
+        RETURN json_build_object('success', TRUE, 'user_id', _user_id);
     END
 $function$;

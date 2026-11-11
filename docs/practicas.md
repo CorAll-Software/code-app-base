@@ -158,6 +158,10 @@ GET/DELETE /auth/sessions[/:id] → listar y cerrar sesiones del propio usuario
   `modulo.submodulo.accion` para módulos grandes.
 - Verbos estándar: `view`, `view_all`, `create`, `edit`, `delete`, `manage`,
   `export`, `approve`. Preferir `view` + `manage` para catálogos simples.
+- Un usuario recibe permisos por dos vías que se suman: sus **roles** y los
+  **permisos específicos** que se le conceden a él (`core.user_permissions`,
+  pestaña *Permisos específicos* del formulario de usuarios). No existe la
+  denegación: lo que da un rol no se le quita a un usuario.
 - **Triple sincronización obligatoria** al agregar permisos:
   1. `backend/src/core/permissions.constants.ts`
   2. `frontend/src/core/permissions.constants.ts` (gemelo exacto)
@@ -186,7 +190,8 @@ marca con un miembro centinela para distinguirlo de "caché fría".
 **Al cambiar quién puede qué hay que invalidar.** Ya está resuelto para el
 núcleo: editar un rol (`roles.api.ts` → `propagarCambioDeRol`) invalida a todos
 sus miembros vía `core.list_users_by_role` y les manda `notifyUserReload`;
-cambiar los roles de un usuario hace lo propio en `users.api.ts`. Si un módulo
+cambiar los roles o los permisos específicos de un usuario hace lo propio en
+`users.api.ts`. Si un módulo
 de negocio altera permisos por su cuenta, debe invalidar igual.
 
 ### CAPTCHA (Cap)

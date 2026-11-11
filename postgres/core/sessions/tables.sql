@@ -10,7 +10,8 @@ DO $$ BEGIN CREATE TYPE core.enum_session_revoke_reason AS ENUM (
     'MANUAL',           -- El usuario la cerró desde "Sesiones" (otro dispositivo)
     'PASSWORD_CHANGE',  -- Cambio/restablecimiento de contraseña
     'REUSE_DETECTED',   -- Se presentó un refresh token ya rotado (posible robo)
-    'ADMIN'             -- Cierre forzado por un administrador
+    'ADMIN',            -- Cierre forzado por un administrador
+    'PASSWORD_ATTEMPTS' -- Demasiados fallos con la contraseña actual (sesión posiblemente robada)
 ); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Una fila por sesión (dispositivo/navegador). El `id` es el `sid` que viaja

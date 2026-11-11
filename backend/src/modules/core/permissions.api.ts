@@ -15,8 +15,12 @@ export const PermissionsApi = new Elysia()
         }
         return result.result;
     }, {
-        // El visor de auditoría también lo consulta para etiquetar los permisos
-        // que aparecen en los cambios de rol.
-        requirePermission: [PERMISSIONS.ROLES.VIEW, PERMISSIONS.AUDITORIA.VIEW]
+        // Además de la pantalla de Roles lo consultan el formulario de usuarios
+        // (permisos específicos) y el visor de auditoría (para etiquetarlos).
+        requirePermission: [
+            PERMISSIONS.ROLES.VIEW,
+            PERMISSIONS.USUARIOS.VIEW,
+            PERMISSIONS.AUDITORIA.VIEW,
+        ]
     });
 
