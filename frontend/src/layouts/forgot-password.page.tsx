@@ -211,7 +211,8 @@ export const ForgotPasswordPage = () => {
                             hasFeedback
                             rules={[
                                 { required: true, message: 'Por favor ingresa la nueva contraseña' },
-                                { min: 6, message: 'La contraseña debe tener al menos 6 caracteres' },
+                                { min: 8, message: 'La contraseña debe tener al menos 8 caracteres' },
+                                { max: 128, message: 'La contraseña no puede superar los 128 caracteres' },
                                 {
                                     pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%&*])/,
                                     message: "Debe incluir mayúscula, minúscula, número y carácter especial (!@#$%&*)"

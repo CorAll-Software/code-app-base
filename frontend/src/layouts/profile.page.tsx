@@ -141,7 +141,8 @@ export const ProfilePage = () => {
                         hasFeedback
                         rules={[
                             { required: true, message: 'Ingrese la nueva contraseña' },
-                            { min: 6, message: 'Mínimo 6 caracteres' },
+                            { min: 8, message: 'Mínimo 8 caracteres' },
+                            { max: 128, message: 'Máximo 128 caracteres' },
                             {
                                 pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%&*])/,
                                 message: "Debe incluir mayúscula, minúscula, número y carácter especial (!@#$%&*)"
