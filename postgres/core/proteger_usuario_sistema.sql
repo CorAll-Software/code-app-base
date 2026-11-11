@@ -16,6 +16,7 @@ AS $function$
         JOIN core.roles r ON r.id = ur.role_id
         WHERE ur.user_id = _user_id
           AND ur.status = TRUE
+          AND r.status = TRUE
           AND r.is_system = TRUE
     );
 $function$;
