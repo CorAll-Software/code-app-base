@@ -136,7 +136,9 @@ const verificarContrasenaActual = async (
         };
     }
 
-    return { code: 401, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
+    // 400 y no 401: el frontend toma todo 401 por token vencido, renueva,
+    // reintenta (otro fallo contado) y cierra la sesión.
+    return { code: 400, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
 };
 
 const path = '/auth'
