@@ -51,13 +51,18 @@ body {
   font-family: 'Nunito';
   font-style: normal;
   font-weight: 400;
+  font-display: swap;
   src: url('/fonts/Nunito-Regular.ttf') format('truetype');
 }
 
+// 500 y 600 comparten archivo: no hay Nunito-Medium, y sin esta cara un
+// `font-weight: 500` cae a Regular (con `font-synthesis: none` no se simula),
+// así que la jerarquía que se quería marcar con 500 no se veía.
 @font-face {
   font-family: 'Nunito';
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500 600;
+  font-display: swap;
   src: url('/fonts/Nunito-SemiBold.ttf') format('truetype');
 }
 
@@ -65,6 +70,7 @@ body {
   font-family: 'Nunito';
   font-style: normal;
   font-weight: 700;
+  font-display: swap;
   src: url('/fonts/Nunito-Bold.ttf') format('truetype');
 }
 
@@ -123,21 +129,11 @@ body {
   }
 }
 
-.ant-breadcrumb ol {
-  align-items: center
-}
-
 .ant-spin-nested-loading {
   height: 100%;
 
   .ant-spin-container {
     height: 100% !important;
-  }
-}
-
-.w-100-updload-button {
-  .ant-upload.ant-upload-select {
-    width: 100%;
   }
 }
 
@@ -151,42 +147,12 @@ body {
   }
 }
 
-.mt-r-10 {
-  margin-top: 0px;
-}
-
-@media only screen and (max-width: 768px) {
-  .mt-r-10 {
-    margin-top: 10px;
-  }
-
-  .w-r-100 {
-    width: 100%;
-  }
-}
-
-.bg-red {
-  background: #FFCDD2 !important;
-}
-
-.bg-blue {
-  background: #C5CAE9 !important;
-}
-
-.bg-yellow {
-  background: #FFE4B5 !important;
-}
-
 .text-white {
   color: white !important;
 }
 
 .text-bold {
   font-weight: bold !important;
-}
-
-.cursor-pointer {
-  cursor: pointer;
 }
 
 //! Loading Page
@@ -404,11 +370,30 @@ body {
   left: 0;
 }
 
-.hover-scale {
-  transition: all 0.3s ease-in-out;
+// Con "reducir movimiento" activo el cubo deja de saltar, girar y escalar:
+// queda quieto y solo late en opacidad, que no marea y sigue diciendo "cargando".
+@keyframes loading-pulse {
 
-  &:hover {
-    transform: scale(1.3);
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .body-loading .shadow,
+  .body-loading .spinner,
+  .body-loading .jumper {
+    animation: none;
+  }
+
+  .body-loading .loader {
+    animation: loading-pulse 1.6s ease-in-out infinite;
   }
 }
 
@@ -469,12 +454,12 @@ body {
 }
 
 .login-form-forgot {
-  color: #b11820;
+  color: #251f5b;
   text-decoration: none;
   transition: color 0.3s;
 
   &:hover {
-    color: #d4232c;
+    color: #3b3391;
     text-decoration: underline;
   }
 }
@@ -640,291 +625,8 @@ body {
   }
 }
 
-// ── Dashboard: Project Status Cards - Responsive ──
-
-.project-status-card {
-  container-type: inline-size;
-}
-
-.card-metrics-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.card-doughnut-section {
-  flex: 0 0 100px;
-  min-width: 100px;
-  height: 100px;
-  position: relative;
-}
-
-.card-doughnut-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-}
-
-.card-budget-section {
-  flex: 1;
-  min-width: 0;
-}
-
-.card-budget-row {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-  gap: 8px;
-
-  >div:last-child {
-    text-align: right;
-    flex-shrink: 0;
-  }
-}
-
-.card-totals-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-
-  >div:last-child {
-    text-align: right;
-    flex-shrink: 0;
-  }
-}
-
-// Container query: stack doughnut/budget when card is narrow
-@container (max-width: 340px) {
-  .card-metrics-row {
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .card-doughnut-section {
-    flex: none;
-    width: 90px;
-    height: 90px;
-  }
-
-  .card-budget-section {
-    width: 100%;
-  }
-
-  .card-budget-row {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-}
-
-// Cards forced full-width between md and lg (sidebar eats too much space)
-@media (min-width: 768px) and (max-width: 991px) {
-  .project-cards-grid .ant-col {
-    flex: 0 0 100% !important;
-    max-width: 100% !important;
-  }
-}
-
-// Tighter doughnut between lg and xl
-@media (min-width: 992px) and (max-width: 1199px) {
-  .card-metrics-row {
-    gap: 10px;
-  }
-
-  .card-doughnut-section {
-    flex: 0 0 85px;
-    min-width: 85px;
-    height: 85px;
-  }
-}
-
-// Stack doughnut/budget at xl with 3 cards
-@media (min-width: 1200px) and (max-width: 1599px) {
-  .card-metrics-row {
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .card-doughnut-section {
-    flex: none;
-    width: 90px;
-    height: 90px;
-  }
-
-  .card-budget-section {
-    width: 100%;
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════
-// Projects Module — Responsive Overrides
-// ══════════════════════════════════════════════════════════════════════
-
-// ── Tablet: 769px – 1024px ──────────────────────────────────────────
-@media only screen and (min-width: 769px) and (max-width: 1024px) {
-
-  // ProjectLayout: narrower title to give selector more room
-  .project-module-card .ant-card-head-title .ant-typography.ant-typography-ellipsis {
-    max-width: 220px !important;
-  }
-
-  // Gantt sidebar: reduce from 500px to 350px
-  .gantt-container .gantt-header>div:first-child,
-  .gantt-container .gantt-row>div:first-child {
-    width: 350px !important;
-    min-width: 350px !important;
-  }
-
-  // Kanban filter controls: let selects shrink
-  .kanban-filter-controls .ant-select {
-    width: 130px !important;
-  }
-
-  .kanban-filter-controls .ant-input-search {
-    width: 160px !important;
-  }
-}
-
-// ── Mobile: ≤ 768px ─────────────────────────────────────────────────
+// ── Móvil: los drawers no desbordan el ancho de la pantalla ──
 @media only screen and (max-width: 768px) {
-
-  // ── 1. ProjectLayout header: stack title + selector ──
-  .project-module-card .ant-card-head-title>.ant-flex>.ant-flex {
-    flex-wrap: wrap !important;
-  }
-
-  .project-module-card .ant-card-head-title .ant-typography.ant-typography-ellipsis {
-    max-width: 160px !important;
-  }
-
-  // ProjectSelector wrapper: full width below title
-  .project-module-card .ant-card-head-title>.ant-flex>.ant-flex>div:last-child {
-    flex: 1 1 100% !important;
-    max-width: 100% !important;
-  }
-
-  // Tabs scrollable on mobile
-  .project-module-card .ant-tabs-nav {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .project-module-card .ant-tabs-nav-list {
-    flex-wrap: nowrap;
-  }
-
-  // ── 2. ProjectSelector controls: stack each on its own row ──
-  .project-module-card .ant-card-head-title .ant-select,
-  .project-module-card .ant-card-head-title .ant-picker {
-    flex: 1 1 100% !important;
-    min-width: 0 !important;
-  }
-
-  // ── 3. Lista de Proyectos: filters stack vertically ──
-  .standard-layout-card .ant-form .ant-flex {
-    >.ant-input-affix-wrapper {
-      flex: 1 1 100% !important;
-    }
-
-    >.ant-form-item {
-      flex: 1 1 100% !important;
-    }
-
-    >div:has(.ant-picker-range) {
-      flex: 1 1 100% !important;
-    }
-
-    >.ant-space {
-      flex: 1 1 100%;
-      justify-content: flex-end;
-    }
-  }
-
-  // ── 4. Gantt: sidebar shrink to 180px, hide ESTADO/RESP columns ──
-  .gantt-container .gantt-header>div:first-child,
-  .gantt-container .gantt-row>div:first-child {
-    width: 180px !important;
-    min-width: 180px !important;
-  }
-
-  .gantt-sidebar-columns {
-    display: none !important;
-  }
-
-  // Fases header card: stack info and controls
-  .fases-header-card .ant-flex {
-    gap: 6px !important;
-  }
-
-  // ── 5. Kanban: reduce column width, stack filter controls ──
-  .kanban-board-scroll {
-    gap: 12px !important;
-    padding: 8px 8px 12px !important;
-  }
-
-  .kanban-board-scroll>div {
-    min-width: 260px !important;
-  }
-
-  .kanban-filter-controls {
-    flex: 1 1 100% !important;
-
-    .ant-select {
-      width: 100% !important;
-      flex: 1 1 100% !important;
-    }
-
-    .ant-input-search {
-      width: 100% !important;
-      flex: 1 1 100% !important;
-    }
-  }
-
-  // ── 6. Assets: collapse spacer, stack filter controls ──
-  .filters-spacer {
-    display: none !important;
-  }
-
-  // Assets filter form items: full width
-  .ant-form-inline .ant-flex {
-    >.ant-form-item {
-      flex: 1 1 100% !important;
-      min-width: 0 !important;
-    }
-
-    >.ant-space {
-      flex: 1 1 100%;
-    }
-
-    >.ant-flex {
-      flex: 1 1 100% !important;
-      flex-wrap: wrap !important;
-      gap: 8px !important;
-
-      .ant-input-affix-wrapper {
-        flex: 1 1 100% !important;
-        width: 100% !important;
-      }
-    }
-  }
-
-  // ── Shared: hide vertical dividers on mobile ──
-  // Used in Fases header and Kanban filters for project info
-  .fases-header-card .ant-divider-vertical,
-  .kanban-filter-controls~.ant-divider-vertical,
-  .project-module-card .ant-divider-vertical {
-    display: none !important;
-  }
-
-  // The dividers inside the Fases/Kanban info bars
-  .fases-header-card .ant-flex>.ant-flex>.ant-divider-vertical {
-    display: none !important;
-  }
-
-  // ── Drawers: ensure they don't overflow on mobile ──
   .ant-drawer-content-wrapper {
     max-width: 100vw !important;
     max-width: 100dvw !important;
@@ -939,35 +641,5 @@ body {
       max-width: 100%;
       box-sizing: border-box;
     }
-  }
-
-  // TareaDrawer tabs content scrollable
-  .tarea-tabs-fixed .ant-tabs-tabpane-active {
-    overflow-y: auto !important;
-  }
-
-  // ── Gantt: hide drag handles on mobile (no touch support) ──
-  .gantt-row-grip {
-    display: none !important;
-  }
-}
-
-// ── Impresión: solo la credencial de acceso (carnet) ─────────────────────────
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  #credencial-print,
-  #credencial-print * {
-    visibility: visible;
-  }
-  #credencial-print {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 320px;
-  }
-  .no-print {
-    display: none !important;
   }
 }
