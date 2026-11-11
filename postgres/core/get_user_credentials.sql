@@ -7,11 +7,8 @@ DECLARE
 	_id integer;
 	_email varchar(150);
 BEGIN
-	-- Con `id` se busca por id: es lo que usan las rutas con sesión, que ya
-	-- saben quién es el usuario. El correo del token puede estar desactualizado
-	-- (cambió después del login) y no debe decidir contra qué hash se compara.
-	-- Sin `id`, por correo (login), sin distinguir mayúsculas; el índice
-	-- ux_users_email_activo garantiza que hay a lo sumo una cuenta activa.
+	-- Con `id` (rutas con sesión) por id; si no, por correo sin distinguir
+	-- mayúsculas (login). ux_users_email_activo garantiza una sola cuenta activa.
 	_id := NULLIF(req ->> 'id', '')::integer;
 	_email := lower(trim(req ->> 'email'));
 

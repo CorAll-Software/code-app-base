@@ -124,9 +124,7 @@ A partir de ahora los avisos y los códigos de recuperación llegarán a esa dir
     private getRecoveryEmailTemplate(code: string, names: string, _domain: string): string {
         const primaryColor = '#b11820';
         const logoUrl = `cid:${EMAIL_LOGO_CID}`;
-        // El nombre lo escribe el propio usuario (o quien tenga usuarios.edit):
-        // sin escapar, un enlace o un aviso falso guardado en el nombre llegaba
-        // dentro de un correo legítimo de la organización, junto al PIN.
+        // El nombre lo escribe el usuario: se escapa para que no inyecte HTML.
         const nombre = escapeHtml(names);
         const team = escapeHtml(this.team);
 

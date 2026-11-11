@@ -18,9 +18,7 @@ try {
 
 const app = new Elysia()
   // .mapResponse(compressResponse)
-  // Solo los orígenes configurados (ver `cors` en config.ts). Con
-  // credenciales, reflejar cualquier origen dejaba leer las respuestas de la
-  // API desde cualquier página.
+  // Solo los orígenes configurados (ver `cors` en config.ts).
   .use(cors({
     origin: configServer.cors.origins,
     credentials: true,

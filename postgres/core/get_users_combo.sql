@@ -1,7 +1,5 @@
--- Lista mínima de usuarios activos para selectores (asignar a alguien, filtrar
--- por responsable). La usa GET /users/combo, que solo exige sesión: por eso NO
--- devuelve correo, teléfono, DNI ni roles, que son de core.get_users y piden
--- usuarios.view. Si una pantalla necesita más, que use GET /users.
+-- Lista mínima de usuarios activos para selectores (GET /users/combo, que solo
+-- exige sesión). Sin datos personales: para eso está core.get_users.
 CREATE OR REPLACE FUNCTION core.get_users_combo(req json)
 RETURNS json
 LANGUAGE plpgsql

@@ -30,8 +30,7 @@ const FOTO_EXTENSION: Record<string, string> = {
 
 /**
  * Tipo real de la imagen según sus primeros bytes, o `null` si no es JPEG, PNG
- * ni WebP. El `type` del multipart lo declara el cliente y no prueba nada: con
- * él solo, se podía subir HTML declarado como image/png y llamado `a.html`.
+ * ni WebP. El `type` del multipart lo declara el cliente y no prueba nada.
  */
 async function detectarTipoImagen(file: File): Promise<string | null> {
     const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
@@ -84,10 +83,7 @@ const enrichWithFileUrl = async (data: any) => {
 export const UsersApi = new Elysia()
     .use(authPlugin)
     .get(`${path}/combo`, async ({ set }) => {
-        // Endpoint ligero para selectores de asignación: cualquier usuario
-        // autenticado puede usarlo, así que solo devuelve id, nombre y cargo.
-        // Antes devolvía lo mismo que GET /users (correo, teléfono, DNI, roles)
-        // sin pedir usuarios.view.
+        // Para selectores: basta la sesión, así que solo id, nombre y cargo.
         const usersResult = await execProcedure('core.get_users_combo', [{}]);
         if (usersResult.error) {
             set.status = 400;
@@ -227,9 +223,7 @@ export const UsersApi = new Elysia()
             set.status = 400;
             return { message: 'La foto no puede superar los 5 MB' };
         }
-        // El tipo sale del contenido, no de lo que declara el cliente, y de él
-        // salen la extensión de la clave y el Content-Type guardado. El nombre
-        // del archivo original ya no interviene.
+        // Del tipo real salen la extensión de la clave y el Content-Type.
         const tipo = await detectarTipoImagen(foto);
         if (!tipo || !FOTO_ALLOWED_MIME.includes(tipo)) {
             set.status = 400;
@@ -314,7 +308,6 @@ export const UsersApi = new Elysia()
         return result.result;
     }, {
         requirePermission: PERMISSIONS.USUARIOS.EDIT,
-        // Sin esquema, un body sin `password` reventaba en el hash con un 500.
         body: t.Object({
             id: t.Numeric(),
             password: t.String({ minLength: 8, maxLength: 128 }),

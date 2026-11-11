@@ -65,10 +65,8 @@ CREATE TABLE IF NOT EXISTS core.users (
     date_up       BIGINT
 );
 
--- Un correo identifica UNA cuenta activa, sin distinguir mayúsculas: el login
--- y la recuperación lo buscan con lower(). Parcial, porque un usuario borrado
--- (status = FALSE) conserva su correo y no debe bloquear un alta nueva.
--- En una base con datos, falla si ya hay duplicados; para encontrarlos:
+-- Un correo = una cuenta activa, sin distinguir mayúsculas. Parcial: un
+-- borrado conserva su correo sin bloquear altas. Si ya hay duplicados, falla:
 --   SELECT lower(email), count(*) FROM core.users WHERE status GROUP BY 1 HAVING count(*) > 1;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_activo ON core.users (lower(email)) WHERE status = TRUE;
 

@@ -1,15 +1,8 @@
--- Protección de los usuarios de sistema (los que tienen un rol con
--- is_system = TRUE, el administrador raíz).
+-- Protección de los usuarios de sistema (con un rol is_system = TRUE).
 --
--- Tener usuarios.edit / usuarios.create / usuarios.delete no basta para tocar
--- a un usuario de sistema ni para repartir roles de sistema: si no, quien
--- tenga esos permisos podría asignarse el rol raíz o cambiarle la contraseña
--- al administrador y quedarse con su cuenta. Solo otro usuario de sistema
--- puede hacerlo. La interfaz ya lo impedía; esto lo hace cumplir la base,
--- que es donde no se puede saltar.
---
--- Lanza una excepción que empieza por BLINDADO (el frontend la reconoce). No
--- devuelve nada cuando la operación está permitida.
+-- Solo otro usuario de sistema puede modificarlos o asignar roles de sistema;
+-- los permisos usuarios.* no bastan. Lanza una excepción que empieza por
+-- BLINDADO (el frontend la reconoce).
 
 -- ¿El usuario tiene algún rol de sistema activo?
 CREATE OR REPLACE FUNCTION core.es_usuario_sistema(_user_id INTEGER)

@@ -24,11 +24,8 @@ const sello = typeof __SELLO_BUILD__ !== "undefined" ? __SELLO_BUILD__ : SELLO_S
 const version = `${pkg.version}+${sello}`;
 
 /**
- * Secreto con el que se firman los access tokens. Es obligatorio y no tiene
- * valor por defecto: con uno conocido (el viejo "default_secret") cualquiera
- * podía firmarse un token de Administrador. Se exige un mínimo de 32
- * caracteres para que no se pueda adivinar por fuerza bruta. Generar uno con:
- *   bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ * Secreto de los access tokens: obligatorio y sin valor por defecto (con uno
+ * conocido cualquiera podría firmarse un token). Mínimo 32 caracteres.
  */
 const JWT_SECRET_MIN = 32;
 const jwtSecret = (process.env.JWT_SECRET || "").trim();
@@ -38,13 +35,7 @@ if (jwtSecret.length < JWT_SECRET_MIN) {
   );
 }
 
-/**
- * Orígenes del navegador que pueden llamar a la API con credenciales. Es
- * DOMAIN_FRONTEND más los que se agreguen en CORS_ORIGINS, separados por comas
- * (p. ej. el de QAS). Antes se reflejaba cualquier origen con
- * `credentials: true`, y cualquier página de un dominio hermano podía
- * renovar la sesión con la cookie del usuario y leer los tokens nuevos.
- */
+/** Orígenes que pueden llamar a la API con credenciales: DOMAIN_FRONTEND + CORS_ORIGINS. */
 const normalizarOrigen = (origen: string) => origen.trim().replace(/\/+$/, "");
 const domainFrontend = process.env.DOMAIN_FRONTEND || "http://localhost:5004";
 const corsOrigins = [
@@ -53,24 +44,13 @@ const corsOrigins = [
   ),
 ];
 
-/**
- * Atributo Secure de las cookies de sesión. Antes salía de
- * `process.env.NODE_ENV === 'production'`, pero Bun.build sustituye NODE_ENV
- * por el valor del equipo que construye: un build hecho sin NODE_ENV dejaba
- * las cookies sin Secure aunque en el servidor se arrancara con
- * NODE_ENV=production. Ahora se decide al arrancar: COOKIE_SECURE si está
- * definida y, si no, según el esquema de DOMAIN_FRONTEND (https → Secure).
- * Solo un frontend en http:// (desarrollo local) las deja sin Secure.
- */
-/**
- * Proxies de confianza delante del backend (nginx, traefik, balanceador). Cada
- * uno agrega a X-Forwarded-For la dirección de quien le habló, así que la ip
- * real del cliente es la entrada que está TRUSTED_PROXY_HOPS posiciones desde
- * la derecha. Lo que hay más a la izquierda lo pudo escribir el cliente. Con 0
- * (backend expuesto directo) no se confía en ninguna cabecera.
- */
+/** Proxies de confianza delante del backend (ver ipCliente en core/auditoria.ts). */
 const trustedProxyHops = Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "1", 10) || 0);
 
+/**
+ * Secure de las cookies de sesión, decidido al arrancar y no con NODE_ENV (que
+ * Bun.build sustituye al construir): COOKIE_SECURE, o https en DOMAIN_FRONTEND.
+ */
 const cookieSecureEnv = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
 const cookieSecure = cookieSecureEnv ? cookieSecureEnv === "true" : !domainFrontend.startsWith("http://");
 

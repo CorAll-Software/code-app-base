@@ -29,15 +29,10 @@ export type OperacionAuditoria =
     | 'ACCESO_DENEGADO';
 
 /**
- * Ip del cliente según X-Forwarded-For, contando solo los proxies de confianza
- * (`TRUSTED_PROXY_HOPS`, ver config.ts). Cada proxy agrega a la DERECHA la
- * dirección de quien le habló, así que la entrada fiable es la que está a esa
- * distancia del final. Antes se tomaba la primera, que es justo la que puede
- * escribir el cliente: cualquiera elegía la ip que quedaba en la bitácora.
- *
- * Con 0 proxies, o sin la cabecera, devuelve null: mejor vacía que inventada.
- * X-Real-IP solo se usa si no hay X-Forwarded-For y hay proxy de confianza,
- * porque es una cabecera que el proxy fija y el cliente no debería alcanzar.
+ * Ip del cliente según X-Forwarded-For, contando `TRUSTED_PROXY_HOPS` desde la
+ * derecha: cada proxy agrega ahí a quien le habló, y lo de más a la izquierda
+ * lo puede escribir el cliente. Con 0 proxies devuelve null. X-Real-IP solo
+ * sirve de respaldo cuando no hay X-Forwarded-For.
  */
 export const ipCliente = (headers: any): string | null => {
     const saltos = configServer.trustedProxyHops;
@@ -46,8 +41,7 @@ export const ipCliente = (headers: any): string | null => {
     const cadena = (headers?.['x-forwarded-for'] || '').toString()
         .split(',').map((p: string) => p.trim()).filter(Boolean);
     if (cadena.length) {
-        // Si hay menos entradas que proxies, la más a la izquierda es la mejor
-        // que se tiene: la escribió el primer proxy.
+        // Menos entradas que proxies: la más a la izquierda la escribió el primero.
         return cadena[Math.max(0, cadena.length - saltos)] || null;
     }
     return (headers?.['x-real-ip'] || '').toString().trim() || null;

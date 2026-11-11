@@ -159,10 +159,7 @@ export const rotateSession = async (
 /**
  * ¿La sesión sigue viva y es de este usuario? Redis responde la mayoría de las
  * veces; si no la tiene (caché fría, reinicio o revocación) decide la BD y se
- * vuelve a cachear.
- *
- * El dueño se comprueba aunque el token venga firmado: un token cuyo `id` no
- * coincide con el de su `sid` no lo emitió este servidor, así que no se acepta.
+ * vuelve a cachear. Un token cuyo `id` no es el dueño de su `sid` se rechaza.
  */
 export const isSessionActive = async (sessionId: string, userId: number | string): Promise<boolean> => {
     const cachedUser = await userStore.getSessionUser(sessionId);

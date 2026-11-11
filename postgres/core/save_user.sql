@@ -29,10 +29,7 @@ BEGIN
     v_id            := (req->>'id')::INTEGER;
     v_first_name    := req->>'first_name';
     v_last_name     := req->>'last_name';
-    -- El correo identifica la cuenta (login, recuperación), y el login lo
-    -- busca sin distinguir mayúsculas. Se guarda normalizado para que
-    -- 'Ana@x.com' y 'ana@x.com' no puedan ser dos cuentas activas distintas.
-    -- Vacío = no viene.
+    -- Normalizado: el login lo busca sin mayúsculas. Vacío = no viene.
     v_email         := NULLIF(lower(trim(req->>'email')), '');
     v_password_hash := req->>'password_hash';
     v_phone         := req->>'phone';
@@ -52,12 +49,8 @@ BEGIN
     -- sistema (ver core/proteger_usuario_sistema.sql).
     PERFORM core.proteger_usuario_sistema(v_user_cr, NULLIF(v_id, 0), v_rol_sistema);
 
-    -- Validaciones de unicidad, con los valores que QUEDARÁN en la fila: en
-    -- una edición lo que no viene se conserva. Comparar solo lo que trae el
-    -- req dejaba restaurar un usuario borrado ({id, status: true}, sin correo)
-    -- aunque otro activo ya usara su correo. El índice ux_users_email_activo
-    -- (core-tables.sql) respalda la regla del correo ante escrituras
-    -- simultáneas.
+    -- Unicidad con los valores que QUEDARÁN en la fila (en una edición lo que
+    -- no viene se conserva). ux_users_email_activo la respalda ante carreras.
     IF v_id IS NULL OR v_id = 0 THEN
         v_email_final  := v_email;
         v_dni_final    := v_dni;
@@ -107,8 +100,7 @@ BEGIN
             date_up       = EXTRACT(EPOCH FROM NOW())::BIGINT
         WHERE id = v_id;
 
-        -- Si cambió el correo, los códigos de recuperación pendientes se
-        -- pidieron para la dirección anterior: ya no deben servir.
+        -- Si cambió el correo, se anulan los códigos pedidos para el anterior.
         UPDATE core.password_recovery
         SET used = TRUE
         WHERE user_id = v_id

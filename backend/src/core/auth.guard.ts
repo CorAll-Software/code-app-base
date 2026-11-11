@@ -42,13 +42,10 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
                     // 2. Si el valor es null o undefined, no hacemos nada
                     if (!value) return;
 
-                    // 3. Permisos: Redis primero, BD si la caché está fría.
-                    //    No hay atajo de superusuario leído del token: un rol de
-                    //    sistema ya recibe el catálogo completo en
-                    //    core.get_user_permissions, y esa caché se invalida al
-                    //    cambiar los roles. Con el atajo, a un administrador al
-                    //    que le quitaban el rol le duraba el bypass hasta que
-                    //    vencía su token, y le daba tiempo de devolvérselo.
+                    // 3. Permisos: Redis primero, BD si la caché está fría. Sin
+                    //    atajo de superusuario desde el token: un rol de sistema ya
+                    //    recibe todo en core.get_user_permissions, y esa caché se
+                    //    invalida al cambiar los roles.
                     const permissions = (Array.isArray(value) ? value : [value]) as string[];
                     const hasAccess = await userHasAnyPermission(user.id, permissions);
 

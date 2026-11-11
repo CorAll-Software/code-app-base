@@ -19,10 +19,7 @@ AS $function$
         _expires_at    BIGINT;
         _now           BIGINT := EXTRACT(EPOCH FROM NOW())::BIGINT;
     BEGIN
-        -- Normalizado como en save_user: el código se guarda con esta forma y
-        -- validar/restablecer lo buscan igual. Antes aquí se comparaba exacto
-        -- y en el login sin mayúsculas, y una variante como 'Ana@x.com' podía
-        -- resolver a otra cuenta.
+        -- Normalizado como en save_user; validar/restablecer lo buscan igual.
         _email := NULLIF(lower(TRIM(req->>'email')), '');
 
         -- Verificar que el email existe y el usuario está activo
@@ -39,11 +36,8 @@ AS $function$
 
         _names := TRIM(CONCAT_WS(' ', _first_name, _last_name));
 
-        -- Si ya hay un código vigente para este correo, se reenvía el mismo.
-        -- Antes cada petición anulaba el anterior, y cualquiera que conociera
-        -- el correo podía invalidar una y otra vez el código que el dueño
-        -- acababa de recibir. Reenviarlo no da ventaja a nadie: llega al mismo
-        -- buzón, conserva su vencimiento y sus intentos fallidos.
+        -- Con un código vigente se reenvía el mismo (con su vencimiento e
+        -- intentos): pedir otro no debe anular el que el dueño ya recibió.
         SELECT recovery_code, expires_at
           INTO _recovery_code, _expires_at
         FROM core.password_recovery
@@ -55,9 +49,8 @@ AS $function$
         LIMIT 1;
 
         IF _recovery_code IS NULL THEN
-            -- Código de 6 dígitos. RANDOM() no es criptográfico (su secuencia se
-            -- puede predecir); gen_random_uuid() sí sale del generador seguro del
-            -- servidor. Los 8 primeros dígitos hex del UUID v4 son todos aleatorios.
+            -- Código de 6 dígitos del generador seguro (RANDOM() es predecible):
+            -- los 8 primeros hex de un UUID v4 son aleatorios.
             _recovery_code := LPAD(
                 (('x' || SUBSTR(gen_random_uuid()::TEXT, 1, 8))::BIT(32)::BIGINT % 1000000)::TEXT,
                 6, '0');
@@ -87,16 +80,10 @@ $function$;
 
 -- 2. Comprobación común del código, con límite de intentos.
 --
--- Un código de 6 dígitos solo resiste mientras no se pueda probar el millón de
--- combinaciones: cada fallo suma un intento al código vigente del correo y, al
--- llegar al máximo, el código queda anulado y hay que pedir otro. Se compara
--- contra el código VIGENTE (el último no usado y sin vencer; pedir uno nuevo
--- anula los anteriores), no buscando una fila que coincida, para que los
--- fallos se cuenten aunque el código probado no exista.
---
--- Devuelve el id del código si es correcto, o NULL. El FOR UPDATE serializa
--- intentos simultáneos sobre el mismo código, que si no podrían saltarse la
--- cuenta. No se lanza excepción al fallar: el intento sumado debe persistir.
+-- Cada fallo suma un intento al código vigente del correo y, al llegar al
+-- máximo, lo anula. Devuelve el id del código si es correcto, o NULL. El FOR
+-- UPDATE serializa intentos simultáneos; no lanza excepción para que el
+-- intento sumado persista.
 DROP FUNCTION IF EXISTS core.check_recovery_code(VARCHAR, VARCHAR);
 CREATE OR REPLACE FUNCTION core.check_recovery_code(_email VARCHAR, _recovery_code VARCHAR)
  RETURNS INTEGER
@@ -210,8 +197,7 @@ AS $function$
             used_at = _now
         WHERE id = _recovery_id;
 
-        -- La ruta cierra las sesiones de ESTE usuario: el dueño del código,
-        -- no el que resulte de volver a buscar por correo.
+        -- La ruta cierra las sesiones del dueño del código.
         RETURN json_build_object('success', TRUE, 'user_id', _user_id);
     END
 $function$;

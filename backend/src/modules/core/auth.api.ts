@@ -65,24 +65,33 @@ const buildAccessToken = (user: any, sessionId: string) => generateAccessToken({
     sid: sessionId,
 });
 
-/** Fallos seguidos con la contraseña actual antes de cerrar la sesión. */
+// ── Límites ─────────────────────────────────────────────────────────────────
+
+/** Largo máximo de una contraseña: hashear textos enormes solo gasta CPU. */
+const PASSWORD_MAX = 128;
+/** Fallos con la contraseña actual antes de cerrar la sesión, por ventana. */
 const MAX_FALLOS_CONTRASENA = 5;
-/** La cuenta de fallos se reinicia a los 15 minutos del primero. */
 const VENTANA_FALLOS_CONTRASENA = 15 * 60;
+/** Correos de recuperación por dirección, por ventana (lo que dura un código). */
+const ENVIOS_RECUPERACION_MAX = 3;
+const VENTANA_RECUPERACION = 15 * 60;
+
+/**
+ * Hash de una contraseña que nadie conoce, para comparar cuando el correo no
+ * existe: así el login tarda lo mismo con o sin cuenta.
+ */
+let hashSenuelo: Promise<string> | null = null;
+const getHashSenuelo = () => {
+    hashSenuelo ??= Bun.password.hash(crypto.randomUUID());
+    return hashSenuelo;
+};
 
 /**
  * Comprueba la contraseña actual en las rutas con sesión que la piden
- * (cambiar la contraseña, cambiar el correo). Devuelve `null` si es correcta,
- * o el error a responder.
- *
- * Sin límite, quien tuviera un token robado podía probar contraseñas aquí sin
- * captcha y sin dejar rastro, y salir con la contraseña en claro, que sobrevive
- * a la sesión. Ahora cada fallo queda en la bitácora (LOGIN_FALLIDO) y, al
- * llegar al máximo, se cierra la sesión que lo intenta: el dueño solo tiene
- * que volver a entrar; un atacante pierde el token.
- *
- * El hash se busca por el id de la sesión, no por el correo del token, que
- * puede haber cambiado desde el login.
+ * (cambiar contraseña o correo). Devuelve `null` si es correcta, o el error a
+ * responder. Cada fallo va a la bitácora y, al llegar al máximo, se cierra la
+ * sesión: con un token robado no se puede probar contraseñas sin límite.
+ * El hash se busca por id, no por el correo del token, que puede haber cambiado.
  */
 const verificarContrasenaActual = async (
     user: any,
@@ -130,26 +139,6 @@ const verificarContrasenaActual = async (
     return { code: 401, message: 'La contraseña actual es incorrecta. Por favor, verifica tus datos.' };
 };
 
-/** Correos de recuperación por dirección dentro de la ventana. */
-const ENVIOS_RECUPERACION_MAX = 3;
-/** Ventana de los envíos de recuperación: lo que dura un código. */
-const VENTANA_RECUPERACION = 15 * 60;
-
-/** Largo máximo de una contraseña: hashear textos enormes solo sirve para gastar CPU. */
-const PASSWORD_MAX = 128;
-
-/**
- * Hash de una contraseña que nadie conoce, contra el que se compara cuando el
- * correo no existe. Así el login tarda lo mismo con o sin cuenta y el tiempo
- * de respuesta no revela qué correos están registrados. Se calcula una vez,
- * con el mismo algoritmo y coste que los hashes reales.
- */
-let hashSenuelo: Promise<string> | null = null;
-const getHashSenuelo = () => {
-    hashSenuelo ??= Bun.password.hash(crypto.randomUUID());
-    return hashSenuelo;
-};
-
 const path = '/auth'
 
 export const AuthApi = new Elysia()
@@ -179,12 +168,9 @@ export const AuthApi = new Elysia()
             endpoint: `POST ${path}/login`,
         })
 
-        // Primero la contraseña y después el estado de la cuenta, y siempre
-        // con un hash de por medio (el señuelo si el correo no existe). Antes
-        // una cuenta deshabilitada respondía 403 sin mirar la contraseña, y un
-        // correo inexistente respondía antes que uno real: las dos cosas
-        // dejaban saber qué cuentas existen. El verify es asíncrono para no
-        // bloquear el resto de peticiones mientras calcula.
+        // Siempre se verifica un hash (el señuelo si no hay cuenta) y la
+        // contraseña va antes que el estado: ni el tiempo ni el 403 revelan
+        // qué cuentas existen.
         const credentials = credentialsResult.result
         const existe = !!(credentials?.id && credentials?.password_hash)
         const hash = existe ? String(credentials.password_hash) : await getHashSenuelo()
@@ -251,12 +237,9 @@ export const AuthApi = new Elysia()
      * cuando venció): la credencial es el refresh token, que se rota en cada uso.
      */
     .post(`${path}/refresh`, async ({ body, cookie, headers, status }) => {
-        // El refresh se canjea con la cookie httpOnly, que el navegador manda
-        // también desde páginas de dominios hermanos (SameSite=Lax). CORS impide
-        // que esas páginas lean la respuesta, pero la petición igual rotaría la
-        // sesión. Un navegador siempre manda `Origin` en un POST, así que se
-        // rechaza si no es uno permitido; los clientes que no son navegador no
-        // lo mandan y siguen pudiendo renovar.
+        // La cookie viaja también desde dominios hermanos (SameSite=Lax): CORS
+        // no deja leer la respuesta, pero la sesión se rotaría igual. Un
+        // navegador siempre manda `Origin` en un POST; otros clientes, no.
         const origin = headers?.origin
         if (origin && !configServer.cors.isAllowed(origin)) {
             return status(403, { message: 'Origen no permitido' })
@@ -359,8 +342,7 @@ export const AuthApi = new Elysia()
             requirePermission: null
         })
         .put(`/update-profile`, async ({ body, headers, set, user }) => {
-            // Datos actuales: solo para comparar el correo y para el aviso. No
-            // se reenvían a save_user (ver más abajo).
+            // Solo para comparar el correo y para el aviso; no se reenvían.
             const existingResult = await execProcedure('core.get_user_by_id', [{ id: (user as any).id }]);
             if (existingResult.error || !existingResult.result) {
                 set.status = 400;
@@ -369,10 +351,8 @@ export const AuthApi = new Elysia()
 
             const existingUser = existingResult.result as any;
 
-            // Cambiar el correo es cambiar a dónde llegan los códigos de
-            // recuperación: con un token robado bastaba para quedarse con la
-            // cuenta para siempre. Se exige la contraseña actual, como al
-            // cambiar la contraseña.
+            // El correo decide a dónde llegan los códigos de recuperación:
+            // cambiarlo exige la contraseña actual.
             const { currentPassword, ...cambios } = body as any;
             const normalizarCorreo = (correo: unknown) => String(correo ?? '').trim().toLowerCase();
             const cambiaCorreo = cambios.email !== undefined
@@ -390,12 +370,8 @@ export const AuthApi = new Elysia()
                 }
             }
 
-            // Solo los campos de autoservicio. save_user conserva lo que no
-            // viene (COALESCE), así que no hace falta reenviar el resto. Antes
-            // se reenviaba el registro leído arriba, con `enable`, `status` y
-            // `rol_sistema`. Si un administrador daba de baja o degradaba al
-            // usuario entre esa lectura y esta escritura, la escritura le
-            // devolvía el acceso.
+            // Solo los campos de autoservicio: save_user conserva lo que no
+            // viene, y así nunca se reescriben enable, status ni roles.
             const data: Record<string, unknown> = {
                 id: (user as any).id, // siempre el propio perfil
                 email: cambios.email,
@@ -419,8 +395,7 @@ export const AuthApi = new Elysia()
                 return { message: result.error };
             }
 
-            // Aviso a la dirección anterior: si el cambio no lo hizo su dueño,
-            // es la única forma de que se entere. No bloquea la respuesta.
+            // Aviso a la dirección anterior, sin bloquear la respuesta.
             if (cambiaCorreo) {
                 emailService.sendEmailChangedNotice({
                     email: existingUser.email,
@@ -532,16 +507,9 @@ export const AuthApi = new Elysia()
     )
 
     /**
-     * Pide un código de recuperación. Responde SIEMPRE lo mismo, exista o no
-     * la cuenta, y no espera al envío del correo: antes un correo sin cuenta
-     * daba 400 con su propio mensaje y uno con cuenta tardaba lo que el SMTP,
-     * así que se podía averiguar qué correos tienen una cuenta activa.
-     *
-     * Además se limita a ENVIOS_RECUPERACION_MAX por correo cada 15 minutos (lo
-     * que dura un código), cuente o no con cuenta, para que no se pueda llenar
-     * el buzón de nadie. Mientras haya un código vigente se reenvía el mismo
-     * (ver core.request_password_recovery): pedir otro ya no anula el que la
-     * persona acaba de recibir.
+     * Pide un código de recuperación. Responde siempre lo mismo y sin esperar
+     * al SMTP, para no revelar qué correos tienen cuenta. Limitado a
+     * ENVIOS_RECUPERACION_MAX por correo y ventana.
      */
     .post(`${path}/forgot-password`, async ({ body, status }) => {
         const { email } = body as { email: string };
@@ -563,8 +531,7 @@ export const AuthApi = new Elysia()
             return respuesta;
         }
 
-        // Sin await: el tiempo del SMTP no debe distinguir este caso. Un fallo
-        // de envío queda en el log (sendRecoveryCode nunca lanza).
+        // Sin await (sendRecoveryCode nunca lanza; los fallos quedan en el log).
         const { recovery_code, names } = result.result;
         void emailService.sendRecoveryCode({ email, code: recovery_code, names, domain: configServer.domain });
 
@@ -599,9 +566,7 @@ export const AuthApi = new Elysia()
     .post(`${path}/reset-password`, async ({ body, status, headers }) => {
         const { email, recovery_code, new_password } = body as any;
 
-        // El código se comprueba ANTES de hashear: el hash es lo caro, y antes
-        // se calculaba para cualquier petición anónima, con código o sin él.
-        // Un fallo aquí cuenta como intento, igual que en validate.
+        // El código antes que el hash, que es lo caro. Un fallo cuenta como intento.
         const check = await execProcedure('core.validate_recovery_code', [{ email, recovery_code }]);
         if (check.error) {
             return status(500, { message: 'Error al restablecer la contraseña. Por favor, intenta más tarde.' });
@@ -631,9 +596,7 @@ export const AuthApi = new Elysia()
             return status(400, { message: result.result.error });
         }
 
-        // El dueño del código, que es a quien se le cambió la contraseña. Antes
-        // se volvía a buscar por correo, y si dos cuentas lo compartían (con
-        // otras mayúsculas) se cerraban las sesiones de la otra.
+        // El dueño del código, no el que resulte de buscar por correo.
         const userId = result.result?.user_id;
 
         if (userId) {
