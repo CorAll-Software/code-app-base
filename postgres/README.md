@@ -104,6 +104,9 @@ para recargar la caché de Redis, así que la regla no se duplica en dos sitios.
 `core.list_users_by_role(req json)` devuelve los ids con un rol asignado. Es lo
 que permite invalidar la caché de los afectados al editar ese rol.
 
+Para iniciar sesión basta un rol activo o, sin ninguno, al menos un permiso
+directo (`core.get_user_login_data`).
+
 Los permisos directos se guardan con el usuario: `core.save_user` recibe
 `permisos_directos` (array de ids de permiso) y sincroniza la tabla. Solo
 suman, no hay forma de quitarle a un usuario un permiso que le da un rol. Quien

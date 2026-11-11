@@ -264,7 +264,7 @@ export const AuthApi = new Elysia()
 
         const userResult = await execProcedure('core.get_user_login_data', [{ id: rotated.userId }])
         if (userResult.error) {
-            // El usuario ya no puede operar (inactivo, sin roles): cerrar la sesión.
+            // El usuario ya no puede operar (inactivo, sin roles ni permisos): cerrar la sesión.
             await revokeSession(rotated.sessionId, rotated.userId, { reason: 'ADMIN' })
             clearSessionCookies(cookie)
             return status(401, { message: userResult.error })

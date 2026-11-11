@@ -60,13 +60,15 @@ BEGIN
 	  AND u.status = true
 	  AND u.enable = true;
 
-	-- Si no se encuentra el usuario, se lanza una excepción o roles
+	-- Sin usuario activo no hay sesión.
 	IF result1 IS NULL THEN
 		RAISE EXCEPTION 'Usuario no encontrado o inactivo';
 	END IF;
 
-	IF result1 -> 'roles' IS NULL OR (result1 -> 'roles')::jsonb = '[]'::jsonb THEN
-		RAISE EXCEPTION 'El usuario no tiene roles asignados';
+	-- Para entrar basta con poder hacer algo: un rol activo o, sin ninguno, al
+	-- menos un permiso concedido directamente (core.user_permissions).
+	IF (result1 -> 'roles')::jsonb = '[]'::jsonb AND (result1 -> 'permisos')::jsonb = '[]'::jsonb THEN
+		RAISE EXCEPTION 'El usuario no tiene roles ni permisos asignados';
 	END IF;
 
 	RETURN result1;
