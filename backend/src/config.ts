@@ -116,7 +116,6 @@ export const configServer = {
     secure: process.env.EMAIL_SECURE === "true" || false,
     user: process.env.EMAIL_USER || "",
     password: process.env.EMAIL_PASSWORD || "",
-    formWeb: process.env.EMAIL_FORM_WEB || "",
   },
   s3: {
     baseUrl: process.env.AWS_S3_BASE_URL!,
@@ -148,9 +147,6 @@ export const configServer = {
     secretKey: capSecretKey,
     enabled: Boolean(capApiEndpoint && capSecretKey),
     timeoutMs: parseInt(process.env.CAP_TIMEOUT_MS || "8000", 10),
-  },
-  webhooks: {
-    emailSecret: process.env.WEBHOOK_EMAIL_SECRET || "",
   },
   /**
    * Sentry · reporte de errores (instancia autoalojada).
